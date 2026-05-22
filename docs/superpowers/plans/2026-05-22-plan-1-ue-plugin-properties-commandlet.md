@@ -11,13 +11,18 @@
 - C++17 (UE's standard)
 - UE modules: `Core`, `CoreUObject`, `Engine`, `UnrealEd`, `Json`, `JsonUtilities`
 - Test harness: PowerShell + `jq` for JSON normalisation (Windows host)
-- Build: UE's UBT; plugin compiled into `HostProject/Plugins/MergeBinariesExport/Binaries/`
+- Build: UE's UBT; plugin compiled into `ue-host/Binaries/Win64/UnrealEditor-MergeBinariesExport.dll`
+- Shell: Windows PowerShell 5.1 (system default on Windows) or PowerShell 7+ — all scripts are written to work on both
 
 **Prerequisites the engineer must have installed:**
 - Unreal Engine 5.5+ (via Epic Games Launcher; tested against 5.5)
 - Visual Studio 2022 with the "Game development with C++" workload, including MSVC v143, Windows 11 SDK
 - Git for Windows
 - `jq` on PATH (`winget install jqlang.jq`)
+
+**`pwsh` vs. `powershell`:** all script invocations in this plan use `pwsh -File ...` for forward compatibility. If PowerShell 7 isn't installed (`pwsh` not on PATH), substitute `powershell -File ...` (Windows PowerShell 5.1, present on every Windows machine) — the scripts have been written to run on both. Adding PowerShell 7 is a one-liner if you'd rather have it: `winget install Microsoft.PowerShell`.
+
+**UE writing back to `ue-host/Config/DefaultEngine.ini`:** the engine appends default plugin settings (e.g. `AndroidFileServerEditor`) to this file on first load. These auto-generated lines are noise — revert with `git checkout -- ue-host/Config/DefaultEngine.ini` between tasks. Do NOT commit them.
 
 ---
 
@@ -178,11 +183,13 @@ Create `ue-plugin/MergeBinariesExport/MergeBinariesExport.uplugin`:
         {
             "Name": "MergeBinariesExport",
             "Type": "Editor",
-            "LoadingPhase": "PostEngineInit"
+            "LoadingPhase": "Default"
         }
     ]
 }
 ```
+
+`LoadingPhase: "Default"` (NOT `PostEngineInit`): the engine dispatches the `-run=<commandlet>` argument BEFORE `PostEngineInit`, so a module loaded at that phase will not have registered its `UCommandlet` class yet — UE prints `Failed to find commandlet class MergeBinariesExportCommandlet` and exits. `Default` is the conventional phase for editor modules that contribute UClasses needed at commandlet dispatch.
 
 - [ ] **Step 2: Write the module build rules**
 
@@ -347,7 +354,7 @@ Expected: exit code `0`; the `UnrealEditor-MergeBinariesExport.dll` link line ap
 Create `tools/run-commandlet.ps1`:
 
 ```powershell
-#requires -Version 7
+# Works on Windows PowerShell 5.1 and PowerShell 7+.
 [CmdletBinding()]
 param(
     [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.5\Engine\Binaries\Win64\UnrealEditor.exe",
@@ -793,7 +800,7 @@ If the `package.name` field differs between the two fixtures because mount point
 Create `tools/golden-test.ps1`:
 
 ```powershell
-#requires -Version 7
+# Works on Windows PowerShell 5.1 and PowerShell 7+.
 <#
     Drives MergeBinariesExport against every fixture under Examples/v*/*.uasset,
     captures the JSON response for each, normalises volatile fields, and diffs
@@ -1180,7 +1187,7 @@ The spec lists three error paths the commandlet MUST exit gracefully on (§8.4 a
 Create `tools/error-cases.ps1`:
 
 ```powershell
-#requires -Version 7
+# Works on Windows PowerShell 5.1 and PowerShell 7+.
 $ErrorActionPreference = 'Stop'
 
 function Send-Rpc([string]$json) {
@@ -1243,7 +1250,7 @@ The Rust sidecar in Plan 2 will be lenient about stdout noise, but the more we c
 Create `tools/audit-stdout.ps1`:
 
 ```powershell
-#requires -Version 7
+# Works on Windows PowerShell 5.1 and PowerShell 7+.
 $ErrorActionPreference = 'Stop'
 
 $v1 = (Resolve-Path "Examples/v1/BP_MinimalChar.uasset").Path -replace '\\','/'
