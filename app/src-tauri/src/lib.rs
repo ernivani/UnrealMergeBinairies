@@ -1,6 +1,7 @@
 //! Backend for unreal-merge: spawn UE commandlet, diff snapshots, resolve conflicts.
 
 pub mod diff;
+pub mod git;
 pub mod schema;
 pub mod sidecar;
 
