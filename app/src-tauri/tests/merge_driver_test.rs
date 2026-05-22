@@ -1,3 +1,8 @@
+// NOTE: this file is NOT named installer_test.rs (or anything containing
+// "install" / "setup" / "update" / "patch") because Windows's UAC installer-
+// detection heuristic matches those substrings in executable filenames and
+// then refuses to launch the test binary without elevation (os error 740).
+
 use std::process::Command;
 use tempfile::TempDir;
 use unreal_merge::installer;
