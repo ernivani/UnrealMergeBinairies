@@ -1,9 +1,11 @@
 //! Pure diff functions over `Property` lists. Order-independent; keyed by `path`.
 
 use crate::schema::{Property, PropertyValue};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PropertyChange {
     Added {
         path: String,
