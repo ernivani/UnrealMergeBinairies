@@ -2,3 +2,18 @@
 Examples/**/**/*.uasset
 
 docs/
+
+# Unreal Engine build artefacts
+**/Binaries/
+**/Intermediate/
+**/Saved/
+**/DerivedDataCache/
+*.VC.db
+*.opensdf
+*.sdf
+*.suo
+.vs/
+
+# Generated UE solution/project files
+ue-host/*.sln
+ue-host/*.vcxproj*

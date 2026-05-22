@@ -1,0 +1,16 @@
+{
+    "FileVersion": 3,
+    "EngineAssociation": "5.4",
+    "Category": "",
+    "Description": "Host project for MergeBinariesExport plugin development & testing.",
+    "Modules": [],
+    "Plugins": [
+        {
+            "Name": "MergeBinariesExport",
+            "Enabled": true
+        }
+    ],
+    "AdditionalPluginDirectories": [
+        "../ue-plugin"
+    ]
+}
