@@ -7,7 +7,7 @@
 **Architecture:** A C++ editor-only UE plugin under `ue-plugin/MergeBinariesExport/`. A tiny host project at `ue-host/HostProject.uproject` references the plugin so the commandlet has something to run inside. Property serialisation uses UE's `FProperty` reflection (`TFieldIterator<FProperty>`), emitting newline-delimited JSON per request. The blueprint graph, component tree, and bindings are explicitly OUT of scope here and land in Plan 4.
 
 **Tech Stack:**
-- Unreal Engine 5.5+ (5.5 targeted for development; the commandlet works against whatever UE built it). The plan was originally drafted against 5.4; we pinned to 5.5 once Task 1 revealed 5.4 wasn't installed locally. UE 5.6/5.7 should also work — adjust the Build.bat path accordingly.
+- Unreal Engine 5.7 (the plan was originally drafted against 5.4; pinned to 5.5 during Task 1 when 5.4 wasn't installed; bumped to 5.7 during Task 5 because the BP_MinimalChar fixtures have `LegacyFileVersion = -9` which only UE 5.6+ can load).
 - C++17 (UE's standard)
 - UE modules: `Core`, `CoreUObject`, `Engine`, `UnrealEd`, `Json`, `JsonUtilities`
 - Test harness: PowerShell + `jq` for JSON normalisation (Windows host)
@@ -15,7 +15,7 @@
 - Shell: Windows PowerShell 5.1 (system default on Windows) or PowerShell 7+ — all scripts are written to work on both
 
 **Prerequisites the engineer must have installed:**
-- Unreal Engine 5.5+ (via Epic Games Launcher; tested against 5.5)
+- Unreal Engine 5.7 (via Epic Games Launcher; required because the BP_MinimalChar fixtures use a file format newer than 5.5)
 - Visual Studio 2022 with the "Game development with C++" workload, including MSVC v143, Windows 11 SDK
 - Git for Windows
 - `jq` is OPTIONAL. The golden-test harness (Task 4) prefers `jq` for canonical JSON normalisation but ships an in-script PowerShell fallback that key-sorts JSON the same way. Install with `winget install jqlang.jq` if you want stricter parity.
@@ -259,7 +259,7 @@ IMPLEMENT_MODULE(FMergeBinariesExportModule, MergeBinariesExport)
 Run from the repository root in PowerShell:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" `
   -WaitMutex -FromMsBuild
@@ -274,7 +274,7 @@ Why `UnrealEditor` (not `MergeBinariesHostEditor`): the host project is content-
 
 A `Link [x64] UnrealEditor-MergeBinariesExport.dll` line in the log is the proof point for plugin compilation specifically.
 
-If `UE_5.5` isn't installed, substitute the highest installed version that's `>= 5.5` (5.6, 5.7, …). If no UE is installed, stop and ask before proceeding.
+If `UE_5.7` isn't installed, substitute the highest installed version that's `>= 5.5` (5.6, 5.7, …). If no UE is installed, stop and ask before proceeding.
 
 - [ ] **Step 5: Commit**
 
@@ -347,7 +347,7 @@ int32 UMergeBinariesExportCommandlet::Main(const FString& Params)
 - [ ] **Step 3: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" `
   -WaitMutex -FromMsBuild
@@ -363,7 +363,7 @@ Create `tools/run-commandlet.ps1`:
 # Works on Windows PowerShell 5.1 and PowerShell 7+.
 [CmdletBinding()]
 param(
-    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.5\Engine\Binaries\Win64\UnrealEditor.exe",
+    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe",
     [string]$HostProject  = (Join-Path $PSScriptRoot "..\ue-host\HostProject.uproject" | Resolve-Path).Path,
     [string[]]$ExtraArgs  = @()
 )
@@ -586,7 +586,7 @@ int32 UMergeBinariesExportCommandlet::Main(const FString& Params)
 - [ ] **Step 4: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
@@ -782,7 +782,7 @@ Edit `MergeBinariesExportCommandlet.cpp` — add an `#include "AssetExporter.h"`
 - [ ] **Step 4: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
@@ -1148,7 +1148,7 @@ Replace the previous `asset` placeholder block in `Export` with:
 - [ ] **Step 6: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
@@ -1341,7 +1341,7 @@ jobs:
       - name: Build editor
         shell: pwsh
         run: |
-          & "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+          & "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
             UnrealEditor Win64 Development `
             -Project="$env:GITHUB_WORKSPACE\ue-host\HostProject.uproject" `
             -WaitMutex -FromMsBuild

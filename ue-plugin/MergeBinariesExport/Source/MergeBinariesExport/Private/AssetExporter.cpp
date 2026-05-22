@@ -8,6 +8,13 @@
 #include "Misc/SecureHash.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
+#include "UObject/MetaData.h"
+#include "UObject/UnrealType.h"
+#include "UObject/TextProperty.h"
+#include "UObject/EnumProperty.h"
+#include "UObject/SoftObjectPtr.h"
+#include "Dom/JsonValue.h"
+#include "Misc/PackagePath.h"
 
 namespace
 {
@@ -57,7 +64,13 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
         PackageName = MountRoot + BaseName;
     }
 
-    UPackage* Package = LoadPackage(nullptr, *PackageName, LOAD_NoWarn | LOAD_Quiet);
+    // Construct an FPackagePath that carries the explicit .uasset header extension.
+    // Without an explicit extension, the UE 5.5 linker silently refuses to open
+    // packages reached via a runtime-registered mount root.
+    FPackagePath PkgPath = FPackagePath::FromPackageNameChecked(*PackageName);
+    PkgPath.SetHeaderExtension(EPackageExtension::Asset);
+
+    UPackage* Package = LoadPackage(nullptr, PkgPath, LOAD_None);
     if (!Package)
     {
         if (!MountRoot.IsEmpty()) { FPackageName::UnRegisterMountPoint(MountRoot, MountTargetDir); }
@@ -66,6 +79,9 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
             FString::Printf(TEXT("LoadPackage failed for %s"), *PackageName));
         return;
     }
+    // Ensure the package is fully loaded — under -nullrhi commandlets LoadPackage can
+    // return a partially-populated UPackage with no inner objects until FullyLoad runs.
+    Package->FullyLoad();
 
     const FString DisplayName = StableDisplayName(AbsoluteAssetPath, !MountRoot.IsEmpty(), Package->GetName());
 
@@ -79,9 +95,34 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
         return;
     }
 
+    UObject* Primary = FindPrimaryAsset(Package);
+    if (!Primary)
+    {
+        if (!MountRoot.IsEmpty()) { FPackageName::UnRegisterMountPoint(MountRoot, MountTargetDir); }
+        OutResponse->SetBoolField(TEXT("ok"), false);
+        OutResponse->SetStringField(TEXT("error"),
+            FString::Printf(TEXT("no primary asset found in package %s"), *PackageName));
+        return;
+    }
+
     const TSharedRef<FJsonObject> Asset = MakeShared<FJsonObject>();
-    // `asset` block is filled by Task 5; for now leave a placeholder so consumers can detect the schema version.
-    Asset->SetStringField(TEXT("class"), TEXT("(unknown - pending Task 5)"));
+    Asset->SetStringField(TEXT("class"), Primary->GetClass()->GetName());
+    Asset->SetStringField(TEXT("parentClass"),
+        Primary->GetClass()->GetSuperClass()
+            ? Primary->GetClass()->GetSuperClass()->GetPathName()
+            : FString());
+    Asset->SetStringField(TEXT("name"), Primary->GetName());
+
+    TArray<TSharedPtr<FJsonValue>> Entries;
+    WalkProperties(Primary, Primary->GetClass(), FString(), Entries);
+
+    // Sort by `path` so the JSON is canonical (equal inputs -> byte-identical output).
+    Entries.Sort([](const TSharedPtr<FJsonValue>& A, const TSharedPtr<FJsonValue>& B) {
+        return A->AsObject()->GetStringField(TEXT("path"))
+             < B->AsObject()->GetStringField(TEXT("path"));
+    });
+
+    Asset->SetArrayField(TEXT("properties"), Entries);
 
     OutResponse->SetBoolField(TEXT("ok"), true);
     OutResponse->SetStringField(TEXT("path"), AbsoluteAssetPath);
@@ -135,4 +176,134 @@ TSharedPtr<FJsonObject> FAssetExporter::BuildPackageBlock(const FString& Absolut
     Out->SetNumberField(TEXT("fileVersionUE5"),  static_cast<double>(FileVersionUE5));
     Out->SetStringField(TEXT("savedHash"),       FString::Printf(TEXT("sha1:%s"), *Hex));
     return Out;
+}
+
+UObject* FAssetExporter::FindPrimaryAsset(UPackage* Package)
+{
+    // Prefer the object whose name matches the package shortname AND is RF_Standalone —
+    // that is what UE itself treats as the package's "primary asset".
+    UObject* Found = nullptr;
+    const FString ShortName = FPackageName::GetShortName(Package->GetName());
+
+    ForEachObjectWithOuter(Package, [&Found, &ShortName](UObject* It)
+    {
+        if (Found) { return; }
+        if (It->IsA<UMetaData>()) { return; }
+        if (It->HasAnyFlags(RF_Standalone) && It->GetName() == ShortName)
+        {
+            Found = It;
+        }
+    }, /*bIncludeNestedObjects=*/false);
+    if (Found) { return Found; }
+
+    // Fallbacks for assets without a standard name/flag layout.
+    ForEachObjectWithOuter(Package, [&Found](UObject* It)
+    {
+        if (Found) { return; }
+        if (It->IsA<UMetaData>()) { return; }
+        if (It->HasAnyFlags(RF_Standalone | RF_Public)) { Found = It; }
+    }, /*bIncludeNestedObjects=*/false);
+    return Found;
+}
+
+TSharedPtr<FJsonValue> FAssetExporter::SerialisePropertyValue(FProperty* Property, const void* ValuePtr)
+{
+    if (FBoolProperty*  P = CastField<FBoolProperty>(Property))  { return MakeShared<FJsonValueBoolean>(P->GetPropertyValue(ValuePtr)); }
+    if (FIntProperty*   P = CastField<FIntProperty>(Property))   { return MakeShared<FJsonValueNumber>(static_cast<double>(P->GetPropertyValue(ValuePtr))); }
+    if (FInt64Property* P = CastField<FInt64Property>(Property)) { return MakeShared<FJsonValueNumber>(static_cast<double>(P->GetPropertyValue(ValuePtr))); }
+    if (FFloatProperty* P = CastField<FFloatProperty>(Property)) { return MakeShared<FJsonValueNumber>(static_cast<double>(P->GetPropertyValue(ValuePtr))); }
+    if (FDoubleProperty* P = CastField<FDoubleProperty>(Property)) { return MakeShared<FJsonValueNumber>(P->GetPropertyValue(ValuePtr)); }
+    if (FStrProperty*   P = CastField<FStrProperty>(Property))   { return MakeShared<FJsonValueString>(P->GetPropertyValue(ValuePtr)); }
+    if (FNameProperty*  P = CastField<FNameProperty>(Property))  { return MakeShared<FJsonValueString>(P->GetPropertyValue(ValuePtr).ToString()); }
+    if (FTextProperty*  P = CastField<FTextProperty>(Property))  { return MakeShared<FJsonValueString>(P->GetPropertyValue(ValuePtr).ToString()); }
+    if (FEnumProperty*  P = CastField<FEnumProperty>(Property))
+    {
+        const int64 Value = P->GetUnderlyingProperty()->GetSignedIntPropertyValue(ValuePtr);
+        const UEnum* EnumDef = P->GetEnum();
+        const FString Name = EnumDef ? EnumDef->GetNameStringByValue(Value) : FString::FromInt(Value);
+        return MakeShared<FJsonValueString>(Name);
+    }
+    if (FObjectProperty* P = CastField<FObjectProperty>(Property))
+    {
+        UObject* Obj = P->GetObjectPropertyValue(ValuePtr);
+        return MakeShared<FJsonValueString>(Obj ? Obj->GetPathName() : TEXT(""));
+    }
+    if (FSoftObjectProperty* P = CastField<FSoftObjectProperty>(Property))
+    {
+        const FSoftObjectPtr& Ptr = *static_cast<const FSoftObjectPtr*>(ValuePtr);
+        return MakeShared<FJsonValueString>(Ptr.ToString());
+    }
+    if (FStructProperty* P = CastField<FStructProperty>(Property))
+    {
+        const TSharedRef<FJsonObject> Summary = MakeShared<FJsonObject>();
+        Summary->SetStringField(TEXT("type"),    TEXT("struct"));
+        Summary->SetStringField(TEXT("summary"), P->Struct->GetName());
+        return MakeShared<FJsonValueObject>(Summary);
+    }
+    if (FArrayProperty* P = CastField<FArrayProperty>(Property))
+    {
+        FScriptArrayHelper Helper(P, ValuePtr);
+        const TSharedRef<FJsonObject> Summary = MakeShared<FJsonObject>();
+        Summary->SetStringField(TEXT("type"),    TEXT("array"));
+        Summary->SetNumberField(TEXT("length"),  Helper.Num());
+        Summary->SetStringField(TEXT("element"), P->Inner->GetCPPType());
+        return MakeShared<FJsonValueObject>(Summary);
+    }
+    if (FMapProperty* P = CastField<FMapProperty>(Property))
+    {
+        FScriptMapHelper Helper(P, ValuePtr);
+        const TSharedRef<FJsonObject> Summary = MakeShared<FJsonObject>();
+        Summary->SetStringField(TEXT("type"),   TEXT("map"));
+        Summary->SetNumberField(TEXT("length"), Helper.Num());
+        return MakeShared<FJsonValueObject>(Summary);
+    }
+    if (FSetProperty* P = CastField<FSetProperty>(Property))
+    {
+        FScriptSetHelper Helper(P, ValuePtr);
+        const TSharedRef<FJsonObject> Summary = MakeShared<FJsonObject>();
+        Summary->SetStringField(TEXT("type"),   TEXT("set"));
+        Summary->SetNumberField(TEXT("length"), Helper.Num());
+        return MakeShared<FJsonValueObject>(Summary);
+    }
+    return nullptr;
+}
+
+void FAssetExporter::WalkProperties(const void* ContainerData,
+                                    UStruct* Struct,
+                                    const FString& PathPrefix,
+                                    TArray<TSharedPtr<FJsonValue>>& OutEntries,
+                                    int32 Depth)
+{
+    if (Depth > MaxRecursionDepth || !Struct || !ContainerData)
+    {
+        return;
+    }
+
+    for (TFieldIterator<FProperty> It(Struct); It; ++It)
+    {
+        FProperty* Property = *It;
+        if (!Property || Property->HasAnyPropertyFlags(CPF_Transient | CPF_Deprecated))
+        {
+            continue;
+        }
+
+        const FString PropertyPath = PathPrefix.IsEmpty()
+            ? Property->GetName()
+            : PathPrefix + TEXT(".") + Property->GetName();
+
+        const void* ValuePtr = Property->ContainerPtrToValuePtr<void>(ContainerData);
+        TSharedPtr<FJsonValue> Value = SerialisePropertyValue(Property, ValuePtr);
+
+        if (Value.IsValid())
+        {
+            const TSharedRef<FJsonObject> Entry = MakeShared<FJsonObject>();
+            Entry->SetStringField(TEXT("path"),  PropertyPath);
+            Entry->SetStringField(TEXT("type"),  Property->GetCPPType());
+            Entry->SetField   (TEXT("value"), Value);
+            OutEntries.Add(MakeShared<FJsonValueObject>(Entry));
+        }
+        // Note: we intentionally do NOT recurse into FStructProperty here in Plan 1.
+        // Spec keeps property paths flat with structs as opaque summaries; the
+        // detailed struct-field walk is Plan 4's responsibility.
+    }
 }

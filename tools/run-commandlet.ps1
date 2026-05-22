@@ -10,7 +10,7 @@
 #     encoding which can mangle JSON-RPC frames in some shells.
 [CmdletBinding()]
 param(
-    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.5\Engine\Binaries\Win64\UnrealEditor.exe",
+    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe",
     [string]$HostProject  = (Join-Path $PSScriptRoot "..\ue-host\HostProject.uproject"),
     [string[]]$ExtraArgs  = @(),
     [string]$StdinText    = $null,

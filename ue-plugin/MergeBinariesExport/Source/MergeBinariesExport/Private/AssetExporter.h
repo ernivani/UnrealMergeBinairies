@@ -22,4 +22,19 @@ private:
     static TSharedPtr<FJsonObject> BuildPackageBlock(const FString& AbsoluteAssetPath,
                                                      const FString& DisplayName,
                                                      FString& OutError);
+
+    /** Recursive walk; appends one entry per leaf-valued FProperty. */
+    static void WalkProperties(const void* ContainerData,
+                               UStruct* Struct,
+                               const FString& PathPrefix,
+                               TArray<TSharedPtr<FJsonValue>>& OutEntries,
+                               int32 Depth = 0);
+
+    /** Serialise one property's value to a JsonValue. Returns nullptr for unsupported. */
+    static TSharedPtr<FJsonValue> SerialisePropertyValue(FProperty* Property, const void* ValuePtr);
+
+    /** Find the asset's primary UObject inside a UPackage (the "main" asset; what UE shows in the Content Browser). */
+    static UObject* FindPrimaryAsset(UPackage* Package);
+
+    static constexpr int32 MaxRecursionDepth = 8;
 };
