@@ -1,8 +1,46 @@
+import { useEffect, useState } from "react";
+import { getAppMode } from "./ipc";
+import type { AppMode } from "./types";
+import ConflictList from "./views/ConflictList";
+import Diff from "./views/Diff";
+
 export default function App() {
-  return (
-    <main>
-      <h1>Unreal Merge</h1>
-      <p>Plan 3 scaffold - UI lands in Task 6+.</p>
-    </main>
-  );
+  const [mode, setMode] = useState<AppMode | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getAppMode().then(setMode).catch((e) => setError(String(e)));
+  }, []);
+
+  if (error) {
+    return (
+      <main style={{ padding: "1.5rem" }}>
+        <h1>Unreal Merge</h1>
+        <p style={{ color: "#ffb4a8" }}>Failed to load app mode: {error}</p>
+      </main>
+    );
+  }
+  if (!mode) {
+    return (
+      <main style={{ padding: "1.5rem" }}>
+        <h1>Unreal Merge</h1>
+        <p>Loading…</p>
+      </main>
+    );
+  }
+
+  if (mode.kind === "gitDriverGui") {
+    // In git-driver mode the destination is the working-tree file Git passed
+    // as %A — which Tauri receives as the `ours` argv slot. After the driver
+    // exits, Git uses this path as the resolved file.
+    return <Diff oursPath={mode.ours} theirsPath={mode.theirs} destPath={mode.ours} />;
+  }
+
+  if (mode.kind === "standaloneGui") {
+    return <ConflictList />;
+  }
+
+  // mode.kind === "cli" should never reach the Tauri runtime (main.rs branches
+  // off before constructing it), so this is purely defensive.
+  return <p>Unexpected CLI mode in GUI runtime.</p>;
 }

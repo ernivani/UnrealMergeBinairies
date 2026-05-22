@@ -1,0 +1,52 @@
+.root {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.note {
+    color: #aaa;
+    font-size: 0.9rem;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+.form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    color: #b8b8b8;
+}
+
+.form input {
+    background: #1a1c20;
+    border: 1px solid #2c2f36;
+    color: #e6e6e6;
+    padding: 0.45rem 0.6rem;
+    border-radius: 4px;
+    font-family: ui-monospace, "Cascadia Mono", monospace;
+    font-size: 0.85rem;
+}
+
+.form input:focus {
+    outline: 1px solid #5a6470;
+    border-color: #5a6470;
+}
+
+.form button {
+    align-self: flex-start;
+    background: #3b4148;
+    color: #e6e6e6;
+    border: 1px solid #4a5159;
+    padding: 0.45rem 1.2rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.form button:hover { background: #485058; }
