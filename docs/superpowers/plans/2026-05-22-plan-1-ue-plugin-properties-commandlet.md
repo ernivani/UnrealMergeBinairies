@@ -4,7 +4,7 @@
 
 **Goal:** Ship an Unreal Engine editor plugin whose commandlet, when launched with `UnrealEditor.exe HostProject.uproject -run=MergeBinariesExport -stdio -nullrhi -unattended -NoCrashReports`, runs a long-lived JSON-RPC loop over stdin/stdout that loads a `.uasset` on demand and emits `package` + `asset.properties` JSON conforming to the schema in `docs/superpowers/specs/2026-05-22-unreal-merge-binaries-design.md` §6. Verified by golden-JSON tests against `Examples/v1/BP_MinimalChar.uasset` and `Examples/v2/BP_MinimalChar.uasset`.
 
-**Architecture:** A C++ editor-only UE plugin under `ue-plugin/MergeBinariesExport/`. A tiny host project at `ue-host/HostProject.uproject` references the plugin so the commandlet has something to run inside. Property serialisation uses UE's `FProperty` reflection (`TFieldIterator<FProperty>`), emitting newline-delimited JSON per request. The blueprint graph, component tree, and bindings are explicitly OUT of scope here and land in Plan 4.
+**Architecture:** A C++ editor-only UE plugin under `ue-host/Plugins/MergeBinariesExport/`. A tiny host project at `ue-host/HostProject.uproject` references the plugin so the commandlet has something to run inside. Property serialisation uses UE's `FProperty` reflection (`TFieldIterator<FProperty>`), emitting newline-delimited JSON per request. The blueprint graph, component tree, and bindings are explicitly OUT of scope here and land in Plan 4.
 
 **Tech Stack:**
 - Unreal Engine 5.7 (the plan was originally drafted against 5.4; pinned to 5.5 during Task 1 when 5.4 wasn't installed; bumped to 5.7 during Task 5 because the BP_MinimalChar fixtures have `LegacyFileVersion = -9` which only UE 5.6+ can load).
@@ -35,7 +35,7 @@
 ## File structure for this plan
 
 ```
-ue-plugin/
+ue-host/Plugins/
 └── MergeBinariesExport/
     ├── MergeBinariesExport.uplugin
     └── Source/MergeBinariesExport/
@@ -145,7 +145,7 @@ Create `ue-host/HostProject.uproject`:
 }
 ```
 
-The `AdditionalPluginDirectories` entry lets the host project find the plugin source at `ue-plugin/MergeBinariesExport/` without symlinks or copies.
+The `AdditionalPluginDirectories` entry lets the host project find the plugin source at `ue-host/Plugins/MergeBinariesExport/` without symlinks or copies.
 
 - [ ] **Step 3: Commit**
 
@@ -159,14 +159,14 @@ git commit -m "chore: add UE host project skeleton and ignore build artefacts"
 ## Task 1: UE plugin scaffolding
 
 **Files:**
-- Create: `ue-plugin/MergeBinariesExport/MergeBinariesExport.uplugin`
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/MergeBinariesExport.Build.cs`
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Public/MergeBinariesExportModule.h`
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportModule.cpp`
+- Create: `ue-host/Plugins/MergeBinariesExport/MergeBinariesExport.uplugin`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/MergeBinariesExport.Build.cs`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Public/MergeBinariesExportModule.h`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportModule.cpp`
 
 - [ ] **Step 1: Write the plugin manifest**
 
-Create `ue-plugin/MergeBinariesExport/MergeBinariesExport.uplugin`:
+Create `ue-host/Plugins/MergeBinariesExport/MergeBinariesExport.uplugin`:
 
 ```json
 {
@@ -199,7 +199,7 @@ Create `ue-plugin/MergeBinariesExport/MergeBinariesExport.uplugin`:
 
 - [ ] **Step 2: Write the module build rules**
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/MergeBinariesExport.Build.cs`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/MergeBinariesExport.Build.cs`:
 
 ```csharp
 using UnrealBuildTool;
@@ -229,7 +229,7 @@ public class MergeBinariesExport : ModuleRules
 
 - [ ] **Step 3: Write the module interface**
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Public/MergeBinariesExportModule.h`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Public/MergeBinariesExportModule.h`:
 
 ```cpp
 #pragma once
@@ -245,7 +245,7 @@ public:
 };
 ```
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportModule.cpp`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportModule.cpp`:
 
 ```cpp
 #include "MergeBinariesExportModule.h"
@@ -259,7 +259,7 @@ IMPLEMENT_MODULE(FMergeBinariesExportModule, MergeBinariesExport)
 Run from the repository root in PowerShell:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" `
   -WaitMutex -FromMsBuild
@@ -274,12 +274,12 @@ Why `UnrealEditor` (not `MergeBinariesHostEditor`): the host project is content-
 
 A `Link [x64] UnrealEditor-MergeBinariesExport.dll` line in the log is the proof point for plugin compilation specifically.
 
-If `UE_5.7` isn't installed, substitute the highest installed version that's `>= 5.5` (5.6, 5.7, …). If no UE is installed, stop and ask before proceeding.
+If `UE_5.6` isn't installed, substitute the highest installed version that's `>= 5.5` (5.6, 5.7, …). If no UE is installed, stop and ask before proceeding.
 
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add ue-plugin/MergeBinariesExport
+git add ue-host/Plugins/MergeBinariesExport
 git commit -m "feat(ue-plugin): scaffold MergeBinariesExport plugin module"
 ```
 
@@ -288,15 +288,15 @@ git commit -m "feat(ue-plugin): scaffold MergeBinariesExport plugin module"
 ## Task 2: Bare commandlet that exits cleanly
 
 **Files:**
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.h`
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.h`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
 - Create: `tools/run-commandlet.ps1`
 
 Goal of this task: get the commandlet *discoverable* and *runnable* before adding any RPC or export logic. This is the smallest possible smoke test.
 
 - [ ] **Step 1: Declare the commandlet UClass**
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.h`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.h`:
 
 ```cpp
 #pragma once
@@ -319,7 +319,7 @@ public:
 
 - [ ] **Step 2: Implement the commandlet stub**
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`:
 
 ```cpp
 #include "MergeBinariesExportCommandlet.h"
@@ -347,7 +347,7 @@ int32 UMergeBinariesExportCommandlet::Main(const FString& Params)
 - [ ] **Step 3: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" `
   -WaitMutex -FromMsBuild
@@ -363,7 +363,7 @@ Create `tools/run-commandlet.ps1`:
 # Works on Windows PowerShell 5.1 and PowerShell 7+.
 [CmdletBinding()]
 param(
-    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe",
+    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.6\Engine\Binaries\Win64\UnrealEditor.exe",
     [string]$HostProject  = (Join-Path $PSScriptRoot "..\ue-host\HostProject.uproject" | Resolve-Path).Path,
     [string[]]$ExtraArgs  = @()
 )
@@ -393,7 +393,7 @@ Expected output: a burst of UE engine log lines (mostly on stderr), then the pro
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add ue-plugin/MergeBinariesExport tools/run-commandlet.ps1
+git add ue-host/Plugins/MergeBinariesExport tools/run-commandlet.ps1
 git commit -m "feat(ue-plugin): register MergeBinariesExport commandlet (stub)"
 ```
 
@@ -402,15 +402,15 @@ git commit -m "feat(ue-plugin): register MergeBinariesExport commandlet (stub)"
 ## Task 3: JSON-RPC loop over stdin/stdout
 
 **Files:**
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/JsonRpcLoop.h`
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/JsonRpcLoop.cpp`
-- Modify: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/JsonRpcLoop.h`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/JsonRpcLoop.cpp`
+- Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
 
 The loop reads one JSON object per line from stdin, dispatches by `cmd`, and writes one JSON object per line to stdout. It supports two commands now: `ping` (smoke) and `quit`. `export` lands in Task 4.
 
 - [ ] **Step 1: Declare the loop API**
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/JsonRpcLoop.h`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/JsonRpcLoop.h`:
 
 ```cpp
 #pragma once
@@ -434,7 +434,7 @@ public:
 
 - [ ] **Step 2: Implement the loop**
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/JsonRpcLoop.cpp`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/JsonRpcLoop.cpp`:
 
 ```cpp
 #include "JsonRpcLoop.h"
@@ -586,7 +586,7 @@ int32 UMergeBinariesExportCommandlet::Main(const FString& Params)
 - [ ] **Step 4: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
@@ -617,7 +617,7 @@ Expected: prints exactly one line: `{"id":1,"ok":true,"pong":"MergeBinariesExpor
 - [ ] **Step 6: Commit**
 
 ```powershell
-git add ue-plugin/MergeBinariesExport
+git add ue-host/Plugins/MergeBinariesExport
 git commit -m "feat(ue-plugin): JSON-RPC stdio loop with ping handler"
 ```
 
@@ -626,9 +626,9 @@ git commit -m "feat(ue-plugin): JSON-RPC stdio loop with ping handler"
 ## Task 4: `export` command — package block only
 
 **Files:**
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.h`
-- Create: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp`
-- Modify: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.h`
+- Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp`
+- Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
 - Create: `tools/golden-test.ps1`
 - Create: `Examples/v1.expected.json` (initial — package block only)
 - Create: `Examples/v2.expected.json` (initial — package block only)
@@ -637,7 +637,7 @@ Smallest meaningful export: load the package, emit the `package` block. No prope
 
 - [ ] **Step 1: Declare the exporter API**
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.h`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.h`:
 
 ```cpp
 #pragma once
@@ -664,7 +664,7 @@ private:
 
 - [ ] **Step 2: Implement package-block export**
 
-Create `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp`:
+Create `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp`:
 
 ```cpp
 #include "AssetExporter.h"
@@ -782,7 +782,7 @@ Edit `MergeBinariesExportCommandlet.cpp` — add an `#include "AssetExporter.h"`
 - [ ] **Step 4: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
@@ -934,7 +934,7 @@ If `fileVersionUE5` shows something other than `1017`, the lookup in `BuildPacka
 - [ ] **Step 9: Commit**
 
 ```powershell
-git add -f ue-plugin/MergeBinariesExport tools/golden-test.ps1 Examples/v1.expected.json Examples/v2.expected.json
+git add -f ue-host/Plugins/MergeBinariesExport tools/golden-test.ps1 Examples/v1.expected.json Examples/v2.expected.json
 git commit -m "feat(ue-plugin): export 'package' block + golden-test harness"
 ```
 
@@ -945,8 +945,8 @@ git commit -m "feat(ue-plugin): export 'package' block + golden-test harness"
 ## Task 5: `asset.properties` via FProperty reflection
 
 **Files:**
-- Modify: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.h`
-- Modify: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp`
+- Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.h`
+- Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp`
 - Modify: `Examples/v1.expected.json` (re-blessed)
 - Modify: `Examples/v2.expected.json` (re-blessed)
 
@@ -1148,7 +1148,7 @@ Replace the previous `asset` placeholder block in `Export` with:
 - [ ] **Step 6: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
+& "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" `
   UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
@@ -1180,7 +1180,7 @@ If the only diff between v1 and v2 is the SHA-1 hash, escalate — the walker is
 - [ ] **Step 9: Commit**
 
 ```powershell
-git add ue-plugin/MergeBinariesExport Examples/v1.expected.json Examples/v2.expected.json
+git add ue-host/Plugins/MergeBinariesExport Examples/v1.expected.json Examples/v2.expected.json
 git commit -m "feat(ue-plugin): export asset.properties via FProperty reflection"
 ```
 
@@ -1189,7 +1189,7 @@ git commit -m "feat(ue-plugin): export asset.properties via FProperty reflection
 ## Task 6: Error handling — non-existent path, non-asset file, corrupt asset
 
 **Files:**
-- Modify: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp` (only if a case below is found uncovered)
+- Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp` (only if a case below is found uncovered)
 - Create: `tools/error-cases.ps1`
 
 The spec lists three error paths the commandlet MUST exit gracefully on (§8.4 and §8.5). The implementation in Task 4–5 covers the common cases; this task exercises them and adds any missing branch.
@@ -1252,7 +1252,7 @@ git commit -m "test(ue-plugin): cover missing-file, junk-file, unknown-cmd error
 ## Task 7: Stdout cleanliness audit
 
 **Files:**
-- (Possibly) Modify: `ue-plugin/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
+- (Possibly) Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
 - Create: `tools/audit-stdout.ps1`
 
 The Rust sidecar in Plan 2 will be lenient about stdout noise, but the more we can suppress, the smaller the surface area for parser bugs. This task quantifies the noise so Plan 2's reader can be tuned with confidence.
@@ -1327,7 +1327,7 @@ name: ue-plugin-golden
 on:
   pull_request:
     paths:
-      - 'ue-plugin/**'
+      - 'ue-host/Plugins/**'
       - 'ue-host/**'
       - 'Examples/**'
       - 'tools/**'
@@ -1341,7 +1341,7 @@ jobs:
       - name: Build editor
         shell: pwsh
         run: |
-          & "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" `
+          & "C:\Program Files\Epic Games\UE_5.6\Engine\Build\BatchFiles\Build.bat" `
             UnrealEditor Win64 Development `
             -Project="$env:GITHUB_WORKSPACE\ue-host\HostProject.uproject" `
             -WaitMutex -FromMsBuild

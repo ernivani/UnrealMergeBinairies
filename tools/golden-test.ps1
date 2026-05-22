@@ -1,11 +1,11 @@
-﻿<#
+<#
     Drives MergeBinariesExport against every fixture under Examples/v*/*.uasset,
     captures the JSON response for each, normalises volatile fields, and diffs
     against the matching Examples/<n>.expected.json.
 
     Usage:
         powershell tools/golden-test.ps1            # verify
-        powershell tools/golden-test.ps1 -Bless     # overwrite expected files with current output
+        powershell tools/golden-test.ps1 -Bless     # overwrite expected files
 #>
 [CmdletBinding()]
 param(
@@ -32,83 +32,31 @@ $requests = foreach ($v in $Versions) {
     }
 }
 
-# Sacrificial first line: UE's stdio attach consumes the first stdin line before
-# our JsonRpcLoop starts reading. Send a harmless `ping` so the real exports survive.
-$rpcLines = @('{"id":0,"cmd":"ping"}')
-$rpcLines += $requests | ForEach-Object {
+$rpcLines = $requests | ForEach-Object {
     [pscustomobject]@{ id = $_.id; cmd = $_.cmd; path = $_.path } | ConvertTo-Json -Compress
 }
 $rpcLines += '{"cmd":"quit"}'
 
 $stdinText = ($rpcLines -join "`n") + "`n"
 
-# Launch UnrealEditor directly so we can fully capture stdout (where our JSON
-# responses go) without it leaking to the console. run-commandlet.ps1 inherits
-# stdout from the parent and is therefore unsuitable for programmatic capture.
-$UnrealEditor = 'C:\Program Files\Epic Games\UE_5.5\Engine\Binaries\Win64\UnrealEditor.exe'
-$HostProject  = Join-Path $Root 'ue-host\HostProject.uproject'
-$ueArgs = @("`"$HostProject`"", '-run=MergeBinariesExport', '-stdio', '-nullrhi', '-unattended', '-NoCrashReports')
+# Drive the commandlet through the canonical launcher. run-commandlet.ps1 handles:
+#   - UTF-8 stdin (bypasses PowerShell pipe encoding)
+#   - the warmup-ping that absorbs UE's first-stdin-line eating
+#   - routing UE logs to a temp file via -AbsLog
+#   - extracting balanced top-level JSON objects from stdout (one per Write-Output)
+$launcher = Join-Path $PSScriptRoot 'run-commandlet.ps1'
+$outLines = & $launcher -StdinText $stdinText 2>$null
 
-$psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName  = $UnrealEditor
-$psi.Arguments = ($ueArgs -join ' ')
-$psi.RedirectStandardInput  = $true
-$psi.RedirectStandardOutput = $true
-$psi.RedirectStandardError  = $true
-$psi.UseShellExecute        = $false
-$psi.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
-$psi.StandardErrorEncoding  = New-Object System.Text.UTF8Encoding($false)
-
-$proc = [System.Diagnostics.Process]::Start($psi)
-
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-$bytes = $utf8NoBom.GetBytes($stdinText)
-$proc.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
-$proc.StandardInput.BaseStream.Flush()
-$proc.StandardInput.Close()
-
-# UE writes all log noise + our JSON responses to stdout (stderr stays empty).
-# Drain stderr after stdout to keep the deadlock surface minimal.
-$rawText  = $proc.StandardOutput.ReadToEnd()
-$null     = $proc.StandardError.ReadToEnd()
-$proc.WaitForExit()
-
-# UE log output and our JSON responses share stdout, so log timestamps can be
-# glued onto JSON lines. Walk the text and extract balanced top-level `{...}`
-# objects, then filter for ones that carry an "id" field.
+# Each line is already a clean JSON object courtesy of the launcher's brace-counter.
+# Parse them, key by `id`, ignore the warmup response (id=0) and the quit ack (no id).
 $responses = @{}
-$len = $rawText.Length
-for ($i = 0; $i -lt $len; $i++) {
-    if ($rawText[$i] -ne '{') { continue }
-    $depth = 0
-    $inStr = $false
-    $esc   = $false
-    $start = $i
-    for ($j = $i; $j -lt $len; $j++) {
-        $c = $rawText[$j]
-        if ($inStr) {
-            if ($esc)              { $esc = $false }
-            elseif ($c -eq '\')    { $esc = $true }
-            elseif ($c -eq '"')    { $inStr = $false }
-        } else {
-            if     ($c -eq '"')    { $inStr = $true }
-            elseif ($c -eq '{')    { $depth++ }
-            elseif ($c -eq '}')    {
-                $depth--
-                if ($depth -eq 0) {
-                    $candidate = $rawText.Substring($start, $j - $start + 1)
-                    try {
-                        $obj = $candidate | ConvertFrom-Json -ErrorAction Stop
-                        if ($obj -is [pscustomobject] -and $obj.PSObject.Properties.Match('id').Count -gt 0) {
-                            $responses[[int]$obj.id] = $obj
-                        }
-                    } catch { }
-                    $i = $j
-                    break
-                }
-            }
-        }
-    }
+foreach ($line in $outLines) {
+    try {
+        $obj = $line | ConvertFrom-Json -ErrorAction Stop
+    } catch { continue }
+    if ($obj -isnot [pscustomobject]) { continue }
+    if ($obj.PSObject.Properties.Match('id').Count -eq 0) { continue }
+    $responses[[int]$obj.id] = $obj
 }
 
 # Recursively sort object keys so JSON comparison is order-independent.
@@ -135,13 +83,13 @@ function Format-CanonicalJson($Obj) {
 }
 
 function Normalise([pscustomobject]$Obj) {
-    # Strip the absolute on-disk path so the golden file is portable across machines.
+    # Strip the absolute on-disk path so the golden is portable across machines.
     if ($Obj.PSObject.Properties.Match('path').Count -gt 0) { $Obj.path = '<ABSOLUTE_PATH_STRIPPED>' }
     # Engine patch version drifts; pin to major.minor only.
     if ($Obj.package -and $Obj.package.engineVersion) {
         $Obj.package.engineVersion = ($Obj.package.engineVersion -replace '^(\d+\.\d+).*','$1.x')
     }
-    # Strip the per-request id â€” only the (path, tag) identifies the fixture.
+    # Strip the per-request id - only (path, tag) identifies the fixture.
     if ($Obj.PSObject.Properties.Match('id').Count -gt 0) { $Obj.PSObject.Properties.Remove('id') }
     return $Obj
 }
@@ -182,4 +130,3 @@ foreach ($req in $requests) {
 }
 
 if ($failed) { exit 1 } else { exit 0 }
-

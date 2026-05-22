@@ -8,7 +8,6 @@
 #include "Misc/SecureHash.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
-#include "UObject/MetaData.h"
 #include "UObject/UnrealType.h"
 #include "UObject/TextProperty.h"
 #include "UObject/EnumProperty.h"
@@ -31,6 +30,29 @@ namespace
             return RealPackageName;
         }
         return TEXT("/MergeTmp/") + FPaths::GetBaseFilename(AbsoluteAssetPath);
+    }
+
+    // Replace counter-suffixed temporary mount roots (/MergeTmp17/...) with the stable
+    // form (/MergeTmp/...) so subobject references in serialised property values stay
+    // run-independent across the lifetime of the commandlet.
+    FString NormaliseObjectPath(const FString& Path)
+    {
+        if (Path.IsEmpty()) { return Path; }
+        // Find a "/MergeTmp<digits>/" prefix or anywhere-in-string occurrence and rewrite.
+        FString Result = Path;
+        int32 Idx = Result.Find(TEXT("/MergeTmp"));
+        while (Idx != INDEX_NONE)
+        {
+            const int32 DigitStart = Idx + 9; // length of "/MergeTmp"
+            int32 DigitEnd = DigitStart;
+            while (DigitEnd < Result.Len() && FChar::IsDigit(Result[DigitEnd])) { ++DigitEnd; }
+            if (DigitEnd > DigitStart && DigitEnd < Result.Len() && Result[DigitEnd] == TEXT('/'))
+            {
+                Result = Result.Left(DigitStart) + Result.Mid(DigitEnd);
+            }
+            Idx = Result.Find(TEXT("/MergeTmp"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Idx + 9);
+        }
+        return Result;
     }
 }
 
@@ -188,7 +210,9 @@ UObject* FAssetExporter::FindPrimaryAsset(UPackage* Package)
     ForEachObjectWithOuter(Package, [&Found, &ShortName](UObject* It)
     {
         if (Found) { return; }
-        if (It->IsA<UMetaData>()) { return; }
+        // UE renamed UMetaData → UPackageMetaData around 5.6; match by class name to stay version-independent.
+        const FName ClassName = It->GetClass()->GetFName();
+        if (ClassName == TEXT("MetaData") || ClassName == TEXT("PackageMetaData")) { return; }
         if (It->HasAnyFlags(RF_Standalone) && It->GetName() == ShortName)
         {
             Found = It;
@@ -200,7 +224,9 @@ UObject* FAssetExporter::FindPrimaryAsset(UPackage* Package)
     ForEachObjectWithOuter(Package, [&Found](UObject* It)
     {
         if (Found) { return; }
-        if (It->IsA<UMetaData>()) { return; }
+        // UE renamed UMetaData → UPackageMetaData around 5.6; match by class name to stay version-independent.
+        const FName ClassName = It->GetClass()->GetFName();
+        if (ClassName == TEXT("MetaData") || ClassName == TEXT("PackageMetaData")) { return; }
         if (It->HasAnyFlags(RF_Standalone | RF_Public)) { Found = It; }
     }, /*bIncludeNestedObjects=*/false);
     return Found;
@@ -226,12 +252,12 @@ TSharedPtr<FJsonValue> FAssetExporter::SerialisePropertyValue(FProperty* Propert
     if (FObjectProperty* P = CastField<FObjectProperty>(Property))
     {
         UObject* Obj = P->GetObjectPropertyValue(ValuePtr);
-        return MakeShared<FJsonValueString>(Obj ? Obj->GetPathName() : TEXT(""));
+        return MakeShared<FJsonValueString>(NormaliseObjectPath(Obj ? Obj->GetPathName() : FString()));
     }
     if (FSoftObjectProperty* P = CastField<FSoftObjectProperty>(Property))
     {
         const FSoftObjectPtr& Ptr = *static_cast<const FSoftObjectPtr*>(ValuePtr);
-        return MakeShared<FJsonValueString>(Ptr.ToString());
+        return MakeShared<FJsonValueString>(NormaliseObjectPath(Ptr.ToString()));
     }
     if (FStructProperty* P = CastField<FStructProperty>(Property))
     {

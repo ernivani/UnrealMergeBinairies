@@ -1,10 +1,290 @@
 ﻿{
     "asset":  {
-                  "class":  "(unknown - pending Task 5)"
+                  "class":  "Blueprint",
+                  "name":  "BP_MinimalChar",
+                  "parentClass":  "/Script/Engine.BlueprintCore",
+                  "properties":  [
+                                     {
+                                         "path":  "bDeprecate",
+                                         "type":  "uint8",
+                                         "value":  false
+                                     },
+                                     {
+                                         "path":  "bDuplicatingReadOnly",
+                                         "type":  "uint8",
+                                         "value":  false
+                                     },
+                                     {
+                                         "path":  "bGenerateAbstractClass",
+                                         "type":  "uint8",
+                                         "value":  false
+                                     },
+                                     {
+                                         "path":  "bGenerateConstClass",
+                                         "type":  "uint8",
+                                         "value":  false
+                                     },
+                                     {
+                                         "path":  "bLegacyNeedToPurgeSkelRefs",
+                                         "type":  "bool",
+                                         "value":  false
+                                     },
+                                     {
+                                         "path":  "BlueprintCategory",
+                                         "type":  "FString",
+                                         "value":  ""
+                                     },
+                                     {
+                                         "path":  "BlueprintDescription",
+                                         "type":  "FString",
+                                         "value":  ""
+                                     },
+                                     {
+                                         "path":  "BlueprintDisplayName",
+                                         "type":  "FString",
+                                         "value":  ""
+                                     },
+                                     {
+                                         "path":  "BlueprintGuid",
+                                         "type":  "FGuid",
+                                         "value":  {
+                                                       "summary":  "Guid",
+                                                       "type":  "struct"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "BlueprintNamespace",
+                                         "type":  "FString",
+                                         "value":  ""
+                                     },
+                                     {
+                                         "path":  "BlueprintSystemVersion",
+                                         "type":  "int32",
+                                         "value":  2
+                                     },
+                                     {
+                                         "path":  "BookmarkNodes",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "FBPEditorBookmarkNode",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "Bookmarks",
+                                         "type":  "TMap",
+                                         "value":  {
+                                                       "length":  0,
+                                                       "type":  "map"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "bRecompileOnLoad",
+                                         "type":  "uint8",
+                                         "value":  true
+                                     },
+                                     {
+                                         "path":  "bRunConstructionScriptInSequencer",
+                                         "type":  "uint8",
+                                         "value":  false
+                                     },
+                                     {
+                                         "path":  "bRunConstructionScriptOnDrag",
+                                         "type":  "uint8",
+                                         "value":  true
+                                     },
+                                     {
+                                         "path":  "CategorySorting",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "FName",
+                                                       "length":  4,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "CompileMode",
+                                         "type":  "EBlueprintCompileMode",
+                                         "value":  "Default"
+                                     },
+                                     {
+                                         "path":  "ComponentClassOverrides",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "FBPComponentClassOverride",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "ComponentTemplateNameIndex",
+                                         "type":  "TMap",
+                                         "value":  {
+                                                       "length":  1,
+                                                       "type":  "map"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "ComponentTemplates",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "TObjectPtr\u003cUActorComponent\u003e",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "DelegateSignatureGraphs",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "TObjectPtr\u003cUEdGraph\u003e",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "DeprecatedPinWatches",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "TObjectPtr\u003cUEdGraphPin_Deprecated\u003e",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "Extensions",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "TObjectPtr\u003cUBlueprintExtension\u003e",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "FunctionGraphs",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "TObjectPtr\u003cUEdGraph\u003e",
+                                                       "length":  4,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "GeneratedClass",
+                                         "type":  "TSubclassOf\u003cUObject\u003e",
+                                         "value":  ""
+                                     },
+                                     {
+                                         "path":  "GeneratedVariables",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "FBPVariableDescription",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "HideCategories",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "FString",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "ImplementedInterfaces",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "FBPInterfaceDescription",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "ImportedNamespaces",
+                                         "type":  "TSet",
+                                         "value":  {
+                                                       "length":  0,
+                                                       "type":  "set"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "InheritableComponentHandler",
+                                         "type":  "TObjectPtr\u003cUInheritableComponentHandler\u003e",
+                                         "value":  ""
+                                     },
+                                     {
+                                         "path":  "LastEditedDocuments",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "FEditedDocumentInfo",
+                                                       "length":  3,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "MacroGraphs",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "TObjectPtr\u003cUEdGraph\u003e",
+                                                       "length":  0,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "NewVariables",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "FBPVariableDescription",
+                                                       "length":  11,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "ParentClass",
+                                         "type":  "TSubclassOf\u003cUObject\u003e",
+                                         "value":  ""
+                                     },
+                                     {
+                                         "path":  "ShouldCookPropertyGuidsValue",
+                                         "type":  "EShouldCookBlueprintPropertyGuids",
+                                         "value":  "Inherit"
+                                     },
+                                     {
+                                         "path":  "SimpleConstructionScript",
+                                         "type":  "TObjectPtr\u003cUSimpleConstructionScript\u003e",
+                                         "value":  ""
+                                     },
+                                     {
+                                         "path":  "ThumbnailInfo",
+                                         "type":  "TObjectPtr\u003cUThumbnailInfo\u003e",
+                                         "value":  "/MergeTmp/BP_MinimalChar.BP_MinimalChar:SceneThumbnailInfo_0"
+                                     },
+                                     {
+                                         "path":  "Timelines",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "TObjectPtr\u003cUTimelineTemplate\u003e",
+                                                       "length":  1,
+                                                       "type":  "array"
+                                                   }
+                                     },
+                                     {
+                                         "path":  "UbergraphPages",
+                                         "type":  "TArray",
+                                         "value":  {
+                                                       "element":  "TObjectPtr\u003cUEdGraph\u003e",
+                                                       "length":  1,
+                                                       "type":  "array"
+                                                   }
+                                     }
+                                 ]
               },
     "ok":  true,
     "package":  {
-                    "engineVersion":  "5.5.x",
+                    "engineVersion":  "5.6.x",
                     "fileVersionUE5":  1017,
                     "name":  "/MergeTmp/BP_MinimalChar",
                     "savedHash":  "sha1:9fa77c073350b2496d034a0c8c1ba3ec636f8b58"

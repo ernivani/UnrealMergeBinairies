@@ -1,6 +1,6 @@
 {
     "FileVersion": 3,
-    "EngineAssociation": "5.7",
+    "EngineAssociation": "5.6",
     "Category": "",
     "Description": "Host project for MergeBinariesExport plugin development & testing.",
     "Modules": [],
@@ -13,8 +13,5 @@
             "Name": "AndroidFileServerEditor",
             "Enabled": false
         }
-    ],
-    "AdditionalPluginDirectories": [
-        "../ue-plugin"
     ]
 }

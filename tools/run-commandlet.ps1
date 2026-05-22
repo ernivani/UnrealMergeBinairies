@@ -10,14 +10,22 @@
 #     encoding which can mangle JSON-RPC frames in some shells.
 [CmdletBinding()]
 param(
-    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe",
-    [string]$HostProject  = (Join-Path $PSScriptRoot "..\ue-host\HostProject.uproject"),
+    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.6\Engine\Binaries\Win64\UnrealEditor.exe",
+    [string]$HostProject  = "",
     [string[]]$ExtraArgs  = @(),
     [string]$StdinText    = $null,
     # Skip the warmup-ping prepend (set this if you're sending control frames the loop
     # must see as the very first line, e.g. an end-to-end timing test).
     [switch]$NoWarmup
 )
+
+# Resolve $HostProject default here (not in the param block) because $PSScriptRoot
+# is unreliably populated when parameter defaults are evaluated in Windows PowerShell 5.1
+# under certain invocation patterns.
+if ([string]::IsNullOrEmpty($HostProject)) {
+    $scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+    $HostProject = Join-Path $scriptDir "..\ue-host\HostProject.uproject"
+}
 
 if (-not (Test-Path -LiteralPath $UnrealEditor)) {
     Write-Error "UnrealEditor.exe not found at: $UnrealEditor"
@@ -28,13 +36,19 @@ if (-not (Test-Path -LiteralPath $HostProject)) {
     exit 127
 }
 
+# -AbsLog routes ALL UE logging (LogLinker warnings, LogAssetRegistry, etc.) into a
+# file instead of stdout/stderr. Without this, asynchronous UE log lines splice into
+# our JSON-RPC stdout frames mid-line and break consumers' JSON parsers.
+$logFile = Join-Path ([System.IO.Path]::GetTempPath()) ("MergeBinariesExport-" + [Guid]::NewGuid().ToString() + ".log")
+
 $ueArgs = @(
     $HostProject,
     "-run=MergeBinariesExport",
     "-stdio",
     "-nullrhi",
     "-unattended",
-    "-NoCrashReports"
+    "-NoCrashReports",
+    "-AbsLog=$logFile"
 ) + $ExtraArgs
 
 if ($PSBoundParameters.ContainsKey('StdinText')) {
@@ -91,9 +105,29 @@ if ($PSBoundParameters.ContainsKey('StdinText')) {
     Get-EventSubscriber | Where-Object { $_.SourceObject -eq $proc } | Unregister-Event
     Remove-Event -SourceIdentifier * -ErrorAction SilentlyContinue
 
-    # Emit stdout lines to PowerShell output stream so callers can pipe.
-    foreach ($line in $stdoutLines) { Write-Output $line }
-    # Emit stderr to host stderr (PowerShell's error stream) for visibility, not pipeline.
+    # UE's logging system (LogLinker, LogAssetRegistry, etc.) occasionally writes
+    # warning lines to stdout without a leading newline, causing them to glue onto
+    # the tail of our JSON-RPC frames mid-line. To shield consumers from this,
+    # walk the entire captured stdout as one string and extract every balanced
+    # top-level `{...}` block. One Write-Output per extracted block.
+    $combined = $stdoutLines -join "`n"
+    $depth = 0; $start = -1; $inStr = $false; $esc = $false
+    for ($i = 0; $i -lt $combined.Length; $i++) {
+        $c = $combined[$i]
+        if ($esc) { $esc = $false; continue }
+        if ($c -eq '\') { $esc = $true; continue }
+        if ($c -eq '"') { $inStr = -not $inStr; continue }
+        if ($inStr) { continue }
+        if ($c -eq '{') { if ($depth -eq 0) { $start = $i }; $depth++ }
+        elseif ($c -eq '}') {
+            $depth--
+            if ($depth -eq 0 -and $start -ge 0) {
+                Write-Output $combined.Substring($start, $i - $start + 1)
+                $start = -1
+            }
+        }
+    }
+    # Emit stderr to host stderr for visibility, not pipeline.
     foreach ($line in $stderrLines) { [Console]::Error.WriteLine($line) }
 
     exit $proc.ExitCode
