@@ -21,3 +21,13 @@ ue-host/*.vcxproj*
 # Rust build artefacts
 app/src-tauri/target/
 app/src-tauri/Cargo.lock
+
+# Vite + Node
+app/node_modules/
+app/dist/
+app/*.tsbuildinfo
+app/vite.config.js
+app/vite.config.d.ts
+app/pnpm-workspace.yaml
+app/src/*.js
+app/src/*.d.ts
