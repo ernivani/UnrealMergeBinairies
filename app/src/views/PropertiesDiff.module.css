@@ -1,0 +1,51 @@
+.pane {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: auto;
+    border-right: 1px solid #2c2f36;
+    background: #1d1f23;
+}
+
+.pane:last-child { border-right: none; }
+
+.title {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    background: #25282e;
+    border-bottom: 1px solid #2c2f36;
+    position: sticky;
+    top: 0;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", monospace;
+}
+
+.table th,
+.table td {
+    padding: 0.25rem 0.6rem;
+    border-bottom: 1px solid #25282e;
+    text-align: left;
+    vertical-align: top;
+}
+
+.table th {
+    font-weight: 500;
+    background: #2a2d33;
+    color: #b8b8b8;
+}
+
+.colPath  { white-space: nowrap; color: #d5d5d5; }
+.colType  { color: #888; white-space: nowrap; }
+.colValue { color: #9ab; word-break: break-all; }
+
+.changed {
+    background: rgba(255, 170, 60, 0.07);
+}
+.changed .colPath  { color: #ffc66d; }
+.changed .colValue { color: #ffe1a3; }
