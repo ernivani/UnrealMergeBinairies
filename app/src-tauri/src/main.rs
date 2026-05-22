@@ -1,4 +1,6 @@
-fn main() -> anyhow::Result<()> {
-    eprintln!("unreal-merge v0.1.0 (scaffold)");
-    Ok(())
+fn main() {
+    if let Err(e) = unreal_merge::cli::run() {
+        eprintln!("error: {:#}", e);
+        std::process::exit(1);
+    }
 }

@@ -1,5 +1,6 @@
-//! Backend for unreal-merge: spawn UE commandlet, diff snapshots, resolve conflicts.
+//! Backend for unreal-merge.
 
+pub mod cli;
 pub mod diff;
 pub mod git;
 pub mod installer;
