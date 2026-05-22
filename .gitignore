@@ -17,3 +17,7 @@ docs/
 # Generated UE solution/project files
 ue-host/*.sln
 ue-host/*.vcxproj*
+
+# Rust build artefacts
+app/src-tauri/target/
+app/src-tauri/Cargo.lock
