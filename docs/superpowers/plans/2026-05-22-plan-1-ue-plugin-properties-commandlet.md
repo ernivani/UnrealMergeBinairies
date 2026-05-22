@@ -22,7 +22,9 @@
 
 **`pwsh` vs. `powershell`:** all script invocations in this plan use `pwsh -File ...` for forward compatibility. If PowerShell 7 isn't installed (`pwsh` not on PATH), substitute `powershell -File ...` (Windows PowerShell 5.1, present on every Windows machine) — the scripts have been written to run on both. Adding PowerShell 7 is a one-liner if you'd rather have it: `winget install Microsoft.PowerShell`.
 
-**UE writing back to `ue-host/Config/DefaultEngine.ini`:** the engine appends default plugin settings (e.g. `AndroidFileServerEditor`) to this file on first load. These auto-generated lines are noise — revert with `git checkout -- ue-host/Config/DefaultEngine.ini` between tasks. Do NOT commit them.
+**UE writing back to `ue-host/Config/DefaultEngine.ini`:** Some default-enabled UE plugins (most notably `AndroidFileServerEditor`) inject their config block into this file on first project load. We disable those plugins in `HostProject.uproject` (`"Enabled": false`) to keep the file stable. If a new plugin appears that wasn't disabled and dirties the INI, add it to the `Plugins` array as `"Enabled": false` (do NOT just `git checkout --` the INI in a loop — track the root cause).
+
+**Piping JSON to the commandlet — always use `-StdinText`:** PowerShell's default `$OutputEncoding` is ASCII on 5.1 and UTF-8 on 7+, and various shell wrappers / profiles change it to UTF-16, which mangles JSON-RPC frames into "invalid JSON on stdin" responses. `tools/run-commandlet.ps1` provides a `-StdinText` parameter that bypasses pipe encoding entirely — the script opens the child process via `System.Diagnostics.Process` and writes UTF-8 bytes (no BOM) directly to its stdin. **All callers that send JSON requests MUST use `-StdinText`, not pipe redirection.**
 
 ---
 
@@ -589,16 +591,19 @@ Expected: exit code `0`; `UnrealEditor-MergeBinariesExport.dll` re-linked.
 
 - [ ] **Step 5: Smoke-test `ping` end-to-end**
 
+Use the launcher's `-StdinText` parameter — it writes UTF-8 bytes directly to UE's stdin, bypassing PowerShell pipe-encoding pitfalls.
+
 ```powershell
-'{"id":1,"cmd":"ping"}' | pwsh -File tools/run-commandlet.ps1
+powershell -File tools/run-commandlet.ps1 -StdinText '{"id":1,"cmd":"ping"}'
 ```
 
-Expected: among the engine log lines on stderr, exactly one line appears on stdout that parses as JSON and contains `{"id":1,"ok":true,"pong":"MergeBinariesExport"}`. The line may be preceded or followed by engine log lines — that is exactly the "stdout pollution" the spec calls out.
+Expected: among the engine log lines on stderr, exactly one line appears on stdout that parses as JSON and contains `{"id":1,"ok":true,"pong":"MergeBinariesExport"}`. The line may be preceded or followed by engine log lines — that is exactly the "stdout pollution" the spec calls out. Once UE finishes its boot the loop exits because stdin EOF arrives after the one request.
 
 To filter just for our line:
 
 ```powershell
-'{"id":1,"cmd":"ping"}' | pwsh -File tools/run-commandlet.ps1 2>$null | Where-Object {
+$out = powershell -File tools/run-commandlet.ps1 -StdinText '{"id":1,"cmd":"ping"}' 2>$null
+$out | Where-Object {
     try { ($_ | ConvertFrom-Json -ErrorAction Stop).pong -eq 'MergeBinariesExport' } catch { $false }
 }
 ```
@@ -786,8 +791,11 @@ Expected: exit code `0`; `UnrealEditor-MergeBinariesExport.dll` re-linked.
 $v1 = (Resolve-Path "Examples/v1/BP_MinimalChar.uasset").Path -replace '\\','/'
 $v2 = (Resolve-Path "Examples/v2/BP_MinimalChar.uasset").Path -replace '\\','/'
 
-"{`"id`":1,`"cmd`":`"export`",`"path`":`"$v1`"}`n{`"id`":2,`"cmd`":`"export`",`"path`":`"$v2`"}`n{`"id`":3,`"cmd`":`"quit`"}" |
-    pwsh -File tools/run-commandlet.ps1 2>$null |
+$rpc = "{`"id`":1,`"cmd`":`"export`",`"path`":`"$v1`"}`n" +
+       "{`"id`":2,`"cmd`":`"export`",`"path`":`"$v2`"}`n" +
+       "{`"id`":3,`"cmd`":`"quit`"}`n"
+
+powershell -File tools/run-commandlet.ps1 -StdinText $rpc 2>$null |
     Where-Object { $_ -match '^\s*\{.*"id":\s*[12]' }
 ```
 
@@ -840,8 +848,8 @@ $rpcLines = $requests | ForEach-Object {
 }
 $rpcLines += '{"cmd":"quit"}'
 
-$rawOutput = ($rpcLines -join "`n") |
-    pwsh -File (Join-Path $PSScriptRoot 'run-commandlet.ps1') 2>$null
+$stdinText = ($rpcLines -join "`n") + "`n"
+$rawOutput = powershell -File (Join-Path $PSScriptRoot 'run-commandlet.ps1') -StdinText $stdinText 2>$null
 
 # Keep only lines that parse as JSON objects carrying our schema ("id" + "ok" or "package").
 $responses = @{}
@@ -1191,8 +1199,8 @@ Create `tools/error-cases.ps1`:
 $ErrorActionPreference = 'Stop'
 
 function Send-Rpc([string]$json) {
-    return $json + "`n" + '{"cmd":"quit"}' |
-        pwsh -File (Join-Path $PSScriptRoot 'run-commandlet.ps1') 2>$null |
+    $stdinText = $json + "`n" + '{"cmd":"quit"}' + "`n"
+    return powershell -File (Join-Path $PSScriptRoot 'run-commandlet.ps1') -StdinText $stdinText 2>$null |
         Where-Object { $_ -match '^\s*\{.*"id":\s*\d' } |
         Select-Object -First 1
 }
@@ -1211,8 +1219,8 @@ if (-not ($r2 -match '"ok":false')) { throw "Case 2 failed: $r2" }
 Remove-Item $tmp
 
 # Case 3: unknown cmd
-$r3 = '{"id":3,"cmd":"frobnicate"}' + "`n" + '{"cmd":"quit"}' |
-    pwsh -File (Join-Path $PSScriptRoot 'run-commandlet.ps1') 2>$null |
+$stdinText3 = '{"id":3,"cmd":"frobnicate"}' + "`n" + '{"cmd":"quit"}' + "`n"
+$r3 = powershell -File (Join-Path $PSScriptRoot 'run-commandlet.ps1') -StdinText $stdinText3 2>$null |
     Where-Object { $_ -match '^\s*\{.*"id":\s*3' } | Select-Object -First 1
 Write-Host "Case 3 (unknown cmd): $r3"
 if (-not ($r3 -match 'unknown cmd')) { throw "Case 3 failed: $r3" }
@@ -1254,8 +1262,8 @@ Create `tools/audit-stdout.ps1`:
 $ErrorActionPreference = 'Stop'
 
 $v1 = (Resolve-Path "Examples/v1/BP_MinimalChar.uasset").Path -replace '\\','/'
-$lines = "{`"id`":1,`"cmd`":`"export`",`"path`":`"$v1`"}`n{`"id`":2,`"cmd`":`"quit`"}" |
-    pwsh -File tools/run-commandlet.ps1 2>$null
+$stdinText = "{`"id`":1,`"cmd`":`"export`",`"path`":`"$v1`"}`n{`"id`":2,`"cmd`":`"quit`"}`n"
+$lines = powershell -File tools/run-commandlet.ps1 -StdinText $stdinText 2>$null
 
 $total = $lines.Count
 $jsonOurs = 0

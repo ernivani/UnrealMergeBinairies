@@ -8,6 +8,10 @@
         {
             "Name": "MergeBinariesExport",
             "Enabled": true
+        },
+        {
+            "Name": "AndroidFileServerEditor",
+            "Enabled": false
         }
     ],
     "AdditionalPluginDirectories": [

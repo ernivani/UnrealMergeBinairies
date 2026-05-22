@@ -1,6 +1,5 @@
 #include "JsonRpcLoop.h"
 
-#include "Misc/OutputDeviceConsole.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
