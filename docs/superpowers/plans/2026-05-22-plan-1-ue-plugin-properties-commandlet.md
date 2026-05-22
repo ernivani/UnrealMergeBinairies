@@ -7,14 +7,14 @@
 **Architecture:** A C++ editor-only UE plugin under `ue-plugin/MergeBinariesExport/`. A tiny host project at `ue-host/HostProject.uproject` references the plugin so the commandlet has something to run inside. Property serialisation uses UE's `FProperty` reflection (`TFieldIterator<FProperty>`), emitting newline-delimited JSON per request. The blueprint graph, component tree, and bindings are explicitly OUT of scope here and land in Plan 4.
 
 **Tech Stack:**
-- Unreal Engine 5.4+ (5.4.x targeted for development; the commandlet works against whatever UE built it)
+- Unreal Engine 5.5+ (5.5 targeted for development; the commandlet works against whatever UE built it). The plan was originally drafted against 5.4; we pinned to 5.5 once Task 1 revealed 5.4 wasn't installed locally. UE 5.6/5.7 should also work — adjust the Build.bat path accordingly.
 - C++17 (UE's standard)
 - UE modules: `Core`, `CoreUObject`, `Engine`, `UnrealEd`, `Json`, `JsonUtilities`
 - Test harness: PowerShell + `jq` for JSON normalisation (Windows host)
 - Build: UE's UBT; plugin compiled into `HostProject/Plugins/MergeBinariesExport/Binaries/`
 
 **Prerequisites the engineer must have installed:**
-- Unreal Engine 5.4+ (via Epic Games Launcher)
+- Unreal Engine 5.5+ (via Epic Games Launcher; tested against 5.5)
 - Visual Studio 2022 with the "Game development with C++" workload, including MSVC v143, Windows 11 SDK
 - Git for Windows
 - `jq` on PATH (`winget install jqlang.jq`)
@@ -118,7 +118,7 @@ Create `ue-host/HostProject.uproject`:
 ```json
 {
     "FileVersion": 3,
-    "EngineAssociation": "5.4",
+    "EngineAssociation": "5.5",
     "Category": "",
     "Description": "Host project for MergeBinariesExport plugin development & testing.",
     "Modules": [],
@@ -246,13 +246,22 @@ IMPLEMENT_MODULE(FMergeBinariesExportModule, MergeBinariesExport)
 Run from the repository root in PowerShell:
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" `
-  MergeBinariesHostEditor Win64 Development `
+& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+  UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" `
   -WaitMutex -FromMsBuild
 ```
 
-Expected: `BUILD SUCCESSFUL` printed at the end. If the path to UE differs, adjust it; if multiple UE versions are installed, target the one matching `HostProject.uproject`'s `EngineAssociation`.
+Why `UnrealEditor` (not `MergeBinariesHostEditor`): the host project is content-only (`Modules: []`, no `ue-host/Source/`), so no project-specific editor target exists. UBT detects the plugin via `AdditionalPluginDirectories`, generates temporary Target.cs files, and links the plugin into `ue-host/Binaries/Win64/UnrealEditor-MergeBinariesExport.dll`. This is the standard pattern for plugin-only host projects.
+
+**Verifying success on UE 5.5+:** the literal string `BUILD SUCCESSFUL` is NOT printed by modern UBT. Success indicators are:
+1. The command's exit code is `0` (`$LASTEXITCODE` in PowerShell).
+2. The build log ends with a `Total execution time: NN seconds` line.
+3. `ue-host/Binaries/Win64/UnrealEditor-MergeBinariesExport.dll` was produced.
+
+A `Link [x64] UnrealEditor-MergeBinariesExport.dll` line in the log is the proof point for plugin compilation specifically.
+
+If `UE_5.5` isn't installed, substitute the highest installed version that's `>= 5.5` (5.6, 5.7, …). If no UE is installed, stop and ask before proceeding.
 
 - [ ] **Step 5: Commit**
 
@@ -325,13 +334,13 @@ int32 UMergeBinariesExportCommandlet::Main(const FString& Params)
 - [ ] **Step 3: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" `
-  MergeBinariesHostEditor Win64 Development `
+& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+  UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" `
   -WaitMutex -FromMsBuild
 ```
 
-Expected: `BUILD SUCCESSFUL`.
+Expected: exit code `0`; the `UnrealEditor-MergeBinariesExport.dll` link line appears in the log. (See Task 1 Step 4 for the rationale on target name and the modern UBT success indicators.)
 
 - [ ] **Step 4: Write a PowerShell launcher**
 
@@ -341,7 +350,7 @@ Create `tools/run-commandlet.ps1`:
 #requires -Version 7
 [CmdletBinding()]
 param(
-    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.4\Engine\Binaries\Win64\UnrealEditor.exe",
+    [string]$UnrealEditor = "C:\Program Files\Epic Games\UE_5.5\Engine\Binaries\Win64\UnrealEditor.exe",
     [string]$HostProject  = (Join-Path $PSScriptRoot "..\ue-host\HostProject.uproject" | Resolve-Path).Path,
     [string[]]$ExtraArgs  = @()
 )
@@ -564,12 +573,12 @@ int32 UMergeBinariesExportCommandlet::Main(const FString& Params)
 - [ ] **Step 4: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" `
-  MergeBinariesHostEditor Win64 Development `
+& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+  UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
 
-Expected: `BUILD SUCCESSFUL`.
+Expected: exit code `0`; `UnrealEditor-MergeBinariesExport.dll` re-linked.
 
 - [ ] **Step 5: Smoke-test `ping` end-to-end**
 
@@ -757,12 +766,12 @@ Edit `MergeBinariesExportCommandlet.cpp` — add an `#include "AssetExporter.h"`
 - [ ] **Step 4: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" `
-  MergeBinariesHostEditor Win64 Development `
+& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+  UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
 
-Expected: `BUILD SUCCESSFUL`.
+Expected: exit code `0`; `UnrealEditor-MergeBinariesExport.dll` re-linked.
 
 - [ ] **Step 5: Run export against the fixtures manually and capture output**
 
@@ -1120,12 +1129,12 @@ Replace the previous `asset` placeholder block in `Export` with:
 - [ ] **Step 6: Rebuild**
 
 ```powershell
-& "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" `
-  MergeBinariesHostEditor Win64 Development `
+& "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+  UnrealEditor Win64 Development `
   -Project="$PWD\ue-host\HostProject.uproject" -WaitMutex -FromMsBuild
 ```
 
-Expected: `BUILD SUCCESSFUL`.
+Expected: exit code `0`; `UnrealEditor-MergeBinariesExport.dll` re-linked.
 
 - [ ] **Step 7: Re-bless and verify the goldens**
 
@@ -1313,8 +1322,8 @@ jobs:
       - name: Build editor
         shell: pwsh
         run: |
-          & "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" `
-            MergeBinariesHostEditor Win64 Development `
+          & "C:\Program Files\Epic Games\UE_5.5\Engine\Build\BatchFiles\Build.bat" `
+            UnrealEditor Win64 Development `
             -Project="$env:GITHUB_WORKSPACE\ue-host\HostProject.uproject" `
             -WaitMutex -FromMsBuild
       - name: Run golden tests
