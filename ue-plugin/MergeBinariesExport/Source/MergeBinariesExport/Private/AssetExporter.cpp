@@ -9,6 +9,24 @@
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 
+namespace
+{
+    // Display-name reported in the JSON `package.name` field. When we have a real
+    // /Game/... long package name (asset lives inside an Unreal project's Content/),
+    // we use that. When we synthesise a temporary mount root (asset is outside any
+    // project — our test fixtures), we report the stable form /MergeTmp/<basename>
+    // so the JSON is byte-identical across runs regardless of which numeric mount
+    // counter UE happens to be at internally.
+    FString StableDisplayName(const FString& AbsoluteAssetPath, bool bUsedTempMount, const FString& RealPackageName)
+    {
+        if (!bUsedTempMount)
+        {
+            return RealPackageName;
+        }
+        return TEXT("/MergeTmp/") + FPaths::GetBaseFilename(AbsoluteAssetPath);
+    }
+}
+
 void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonObject>& OutResponse)
 {
     if (!FPaths::FileExists(AbsoluteAssetPath))
@@ -19,31 +37,43 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
         return;
     }
 
-    // Map the on-disk path into a UE package mount. UE's loader uses /Game/... style paths.
+    // Each Export call gets its OWN mount root. Re-registering /MergeTmp/ at a
+    // different directory does not invalidate UE's package cache, so without this
+    // the second export of a same-named asset returns the first call's UPackage
+    // (and in Task 5 will look like the property walk produced identical output
+    // for v1 and v2). The numeric counter guarantees we hit LoadPackage fresh.
+    static int32 MountCounter = 0;
     FString PackageName;
+    FString MountRoot;        // empty if we used a real long package name
+    FString MountTargetDir;
+
     if (!FPackageName::TryConvertFilenameToLongPackageName(AbsoluteAssetPath, PackageName))
     {
-        // Fall back: mount a synthetic prefix at the asset's directory so LoadPackage works.
-        const FString BaseName  = FPaths::GetBaseFilename(AbsoluteAssetPath);
-        const FString DirPath   = FPaths::GetPath(AbsoluteAssetPath);
-        const FString MountRoot = TEXT("/MergeTmp/");
-        FPackageName::RegisterMountPoint(MountRoot, DirPath + TEXT("/"));
+        const FString BaseName = FPaths::GetBaseFilename(AbsoluteAssetPath);
+        const FString DirPath  = FPaths::GetPath(AbsoluteAssetPath);
+        MountRoot       = FString::Printf(TEXT("/MergeTmp%d/"), ++MountCounter);
+        MountTargetDir  = DirPath + TEXT("/");
+        FPackageName::RegisterMountPoint(MountRoot, MountTargetDir);
         PackageName = MountRoot + BaseName;
     }
 
     UPackage* Package = LoadPackage(nullptr, *PackageName, LOAD_NoWarn | LOAD_Quiet);
     if (!Package)
     {
+        if (!MountRoot.IsEmpty()) { FPackageName::UnRegisterMountPoint(MountRoot, MountTargetDir); }
         OutResponse->SetBoolField(TEXT("ok"), false);
         OutResponse->SetStringField(TEXT("error"),
             FString::Printf(TEXT("LoadPackage failed for %s"), *PackageName));
         return;
     }
 
+    const FString DisplayName = StableDisplayName(AbsoluteAssetPath, !MountRoot.IsEmpty(), Package->GetName());
+
     FString Error;
-    const TSharedPtr<FJsonObject> PackageBlock = BuildPackageBlock(AbsoluteAssetPath, Package, Error);
+    const TSharedPtr<FJsonObject> PackageBlock = BuildPackageBlock(AbsoluteAssetPath, DisplayName, Error);
     if (!PackageBlock.IsValid())
     {
+        if (!MountRoot.IsEmpty()) { FPackageName::UnRegisterMountPoint(MountRoot, MountTargetDir); }
         OutResponse->SetBoolField(TEXT("ok"), false);
         OutResponse->SetStringField(TEXT("error"), Error);
         return;
@@ -57,10 +87,17 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
     OutResponse->SetStringField(TEXT("path"), AbsoluteAssetPath);
     OutResponse->SetObjectField(TEXT("package"), PackageBlock);
     OutResponse->SetObjectField(TEXT("asset"), Asset);
+
+    // Unmount the temporary root. The loaded UPackage stays valid until GC, and
+    // each call's package lives under a distinct mount root so cleanup never
+    // affects an earlier call's result. We deliberately do NOT call CollectGarbage
+    // here — repeated CollectGarbage in a warm commandlet is expensive and the
+    // mount-counter strategy already prevents cache collisions.
+    if (!MountRoot.IsEmpty()) { FPackageName::UnRegisterMountPoint(MountRoot, MountTargetDir); }
 }
 
 TSharedPtr<FJsonObject> FAssetExporter::BuildPackageBlock(const FString& AbsoluteAssetPath,
-                                                          UPackage* Package,
+                                                          const FString& DisplayName,
                                                           FString& OutError)
 {
     TArray<uint8> Bytes;
@@ -93,7 +130,7 @@ TSharedPtr<FJsonObject> FAssetExporter::BuildPackageBlock(const FString& Absolut
     }
 
     const TSharedRef<FJsonObject> Out = MakeShared<FJsonObject>();
-    Out->SetStringField(TEXT("name"),            Package->GetName());
+    Out->SetStringField(TEXT("name"),            DisplayName);
     Out->SetStringField(TEXT("engineVersion"),   FEngineVersion::Current().ToString());
     Out->SetNumberField(TEXT("fileVersionUE5"),  static_cast<double>(FileVersionUE5));
     Out->SetStringField(TEXT("savedHash"),       FString::Printf(TEXT("sha1:%s"), *Hex));

@@ -18,13 +18,17 @@
 - Unreal Engine 5.5+ (via Epic Games Launcher; tested against 5.5)
 - Visual Studio 2022 with the "Game development with C++" workload, including MSVC v143, Windows 11 SDK
 - Git for Windows
-- `jq` on PATH (`winget install jqlang.jq`)
+- `jq` is OPTIONAL. The golden-test harness (Task 4) prefers `jq` for canonical JSON normalisation but ships an in-script PowerShell fallback that key-sorts JSON the same way. Install with `winget install jqlang.jq` if you want stricter parity.
 
 **`pwsh` vs. `powershell`:** all script invocations in this plan use `pwsh -File ...` for forward compatibility. If PowerShell 7 isn't installed (`pwsh` not on PATH), substitute `powershell -File ...` (Windows PowerShell 5.1, present on every Windows machine) — the scripts have been written to run on both. Adding PowerShell 7 is a one-liner if you'd rather have it: `winget install Microsoft.PowerShell`.
 
 **UE writing back to `ue-host/Config/DefaultEngine.ini`:** Some default-enabled UE plugins (most notably `AndroidFileServerEditor`) inject their config block into this file on first project load. We disable those plugins in `HostProject.uproject` (`"Enabled": false`) to keep the file stable. If a new plugin appears that wasn't disabled and dirties the INI, add it to the `Plugins` array as `"Enabled": false` (do NOT just `git checkout --` the INI in a loop — track the root cause).
 
-**Piping JSON to the commandlet — always use `-StdinText`:** PowerShell's default `$OutputEncoding` is ASCII on 5.1 and UTF-8 on 7+, and various shell wrappers / profiles change it to UTF-16, which mangles JSON-RPC frames into "invalid JSON on stdin" responses. `tools/run-commandlet.ps1` provides a `-StdinText` parameter that bypasses pipe encoding entirely — the script opens the child process via `System.Diagnostics.Process` and writes UTF-8 bytes (no BOM) directly to its stdin. **All callers that send JSON requests MUST use `-StdinText`, not pipe redirection.**
+**Piping JSON to the commandlet — always use `-StdinText`:** PowerShell's default `$OutputEncoding` is ASCII on 5.1 and UTF-8 on 7+, and various shell wrappers / profiles change it to UTF-16, which mangles JSON-RPC frames into "invalid JSON on stdin" responses. `tools/run-commandlet.ps1` provides a `-StdinText` parameter that bypasses pipe encoding entirely — the script opens the child process via `System.Diagnostics.Process`, writes UTF-8 bytes (no BOM) directly to stdin, and redirects stdout/stderr so callers can pipe (`run-commandlet.ps1 -StdinText '...' | Where-Object ...`). **All callers that send JSON requests MUST use `-StdinText`, not raw pipe redirection.**
+
+**Auto-prepended warmup ping:** UE's `-stdio` commandlet boot empirically swallows or corrupts the first stdin line during init. The launcher automatically prepends `{"id":0,"cmd":"_warmup"}` to every `-StdinText` payload — the loop replies `{"id":0,"ok":false,"error":"unknown cmd: _warmup"}` on stdout, which downstream filters that key on `id >= 1` (or schema-specific fields) ignore. Pass `-NoWarmup` if a caller genuinely needs to be the first frame UE sees.
+
+**Per-call mount roots in AssetExporter:** when the asset lives outside an Unreal project's `Content/` tree (our test fixtures), `FAssetExporter::Export` registers a synthetic mount root and unmounts it before returning. Each call uses a unique counter-suffixed root (`/MergeTmp1/`, `/MergeTmp2/`, …) so UE's package cache can't return a stale `UPackage` from a previous load when the same filename appears in two different fixture directories. The JSON's `package.name` is normalised back to the stable form `/MergeTmp/<basename>` for run-independent goldens.
 
 ---
 
