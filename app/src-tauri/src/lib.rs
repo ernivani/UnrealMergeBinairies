@@ -5,6 +5,7 @@ pub mod cli;
 pub mod diff;
 pub mod git;
 pub mod installer;
+pub mod ipc;
 pub mod merge;
 pub mod schema;
 pub mod sidecar;
