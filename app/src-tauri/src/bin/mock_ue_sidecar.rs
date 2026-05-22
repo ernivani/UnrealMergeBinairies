@@ -71,6 +71,11 @@ fn main() {
         };
         let id = req.get("id").cloned();
         match req.get("cmd").and_then(|c| c.as_str()) {
+            Some("_warmup") => {
+                // Silently absorb the warmup frame so the mock mirrors UE's
+                // first-stdin-line eating behavior.
+                continue;
+            }
             Some("ping") => {
                 let mut resp = serde_json::json!({"ok": true, "pong": "mock_ue_sidecar"});
                 if let Some(v) = &id {
