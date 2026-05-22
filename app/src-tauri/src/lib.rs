@@ -1,5 +1,6 @@
 //! Backend for unreal-merge.
 
+pub mod app_mode;
 pub mod cli;
 pub mod diff;
 pub mod git;
