@@ -1,0 +1,41 @@
+.bar {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: #25282e;
+    border-top: 1px solid #2c2f36;
+    align-items: center;
+}
+
+.spacer { flex: 1; }
+
+.btn {
+    background: #3b4148;
+    color: #e6e6e6;
+    border: 1px solid #4a5159;
+    padding: 0.45rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+    background: #485058;
+    border-color: #5a6470;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.abort {
+    background: #4a3b3b;
+    border-color: #5a4444;
+    color: #e6cccc;
+}
+
+.abort:hover:not(:disabled) {
+    background: #583c3c;
+    border-color: #6e4949;
+}
