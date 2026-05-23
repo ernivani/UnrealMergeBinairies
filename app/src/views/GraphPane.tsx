@@ -22,20 +22,33 @@ export default function GraphPane({ label, side, graphText, diff }: Props) {
     if (!graphText) return;
 
     const blueprintEl = document.createElement("ueb-blueprint");
-    blueprintEl.style.width = "100%";
-    blueprintEl.style.height = "100%";
-    blueprintEl.style.display = "block";
 
     const templateEl = document.createElement("template");
     templateEl.innerHTML = graphText;
     blueprintEl.appendChild(templateEl);
     canvas.appendChild(blueprintEl);
 
-    if (diff) {
-      requestAnimationFrame(() => {
-        applyDiffOverlay(canvas, diff, side);
-      });
-    }
+    if (!diff) return;
+
+    // ueb-blueprint renders ueb-node children asynchronously (Lit). Use a
+    // MutationObserver to wait until at least one ueb-node appears before
+    // applying the diff overlay — rAF alone fires too early.
+    let rafId: number | undefined;
+    const observer = new MutationObserver(() => {
+      if (canvas.querySelector("ueb-node")) {
+        observer.disconnect();
+        rafId = requestAnimationFrame(() => {
+          applyDiffOverlay(canvas, diff, side);
+        });
+      }
+    });
+    observer.observe(canvas, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      if (rafId !== undefined) cancelAnimationFrame(rafId);
+      canvas.innerHTML = "";
+    };
   }, [graphText, diff, side]);
 
   return (
@@ -43,9 +56,8 @@ export default function GraphPane({ label, side, graphText, diff }: Props) {
       <div className={`${styles.label} ${side === "ours" ? styles.ours : ""}`}>
         {label}
       </div>
-      <div ref={canvasRef} className={styles.canvas}>
-        {!graphText && <div className={styles.empty}>No graph data</div>}
-      </div>
+      <div ref={canvasRef} className={styles.canvas} />
+      {!graphText && <div className={styles.empty}>No graph data</div>}
     </div>
   );
 }
