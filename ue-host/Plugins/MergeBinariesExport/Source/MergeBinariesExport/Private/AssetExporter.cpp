@@ -154,6 +154,10 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
         const TSharedRef<FJsonObject> GraphsObj = MakeShared<FJsonObject>();
         for (const FGraphExport& GE : FBlueprintExporter::ExportGraphs(BP))
         {
+            if (GraphsObj->HasField(GE.GraphName))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("BlueprintExporter: duplicate graph name '%s' — overwriting"), *GE.GraphName);
+            }
             GraphsObj->SetStringField(GE.GraphName, GE.GraphText);
         }
         Asset->SetObjectField(TEXT("graphs"), GraphsObj);
