@@ -12,7 +12,7 @@
  *
  * Pin IDs must be exactly 32 hex chars (UE GuidEntity); node GUIDs likewise.
  */
-import type { AssetSnapshot, GraphDiff } from "../types";
+import type { AssetSnapshot, ThreeWayGraphDiff } from "../types";
 import GraphView from "./GraphView";
 
 // Stable across both sides (used to compute diff status).
@@ -146,6 +146,59 @@ Begin Object Class=/Script/BlueprintGraph.K2Node_VariableGet Name="K2Node_Variab
 End Object
 `;
 
+const EVENT_GRAPH_ANCESTOR = `\
+Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name="K2Node_Event_BeginPlay"
+   EventReference=(MemberParent=Class'"/Script/Engine.Actor"',MemberName="ReceiveBeginPlay")
+   bOverrideFunction=True
+   NodeGuid=${G_BEGINPLAY}
+   NodePosX=-80
+   NodePosY=0
+   CustomProperties Pin (PinId=C0000000000000000000000000000010,PinName="OutputDelegate",Direction="EGPD_Output",PinType.PinCategory="delegate",PinType.PinSubCategory="MulticastDelegateProperty",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,)
+   CustomProperties Pin (PinId=C0000000000000000000000000000011,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableSet_Health C0000000000000000000000000000020,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_VariableSet Name="K2Node_VariableSet_Health"
+   VariableReference=(MemberName="Health",MemberGuid=AABBCC00000000000000000000000001)
+   NodeGuid=${G_SET_HEALTH}
+   NodePosX=180
+   NodePosY=0
+   CustomProperties Pin (PinId=C0000000000000000000000000000020,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Event_BeginPlay C0000000000000000000000000000011,),)
+   CustomProperties Pin (PinId=C0000000000000000000000000000021,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 C0000000000000000000000000000030,),)
+   CustomProperties Pin (PinId=C0000000000000000000000000000022,PinName="Health",Direction="EGPD_Input",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,DefaultValue="0.0",)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_IfThenElse Name="K2Node_IfThenElse_0"
+   NodeGuid=${G_BRANCH}
+   NodePosX=460
+   NodePosY=0
+   CustomProperties Pin (PinId=C0000000000000000000000000000030,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableSet_Health C0000000000000000000000000000021,),)
+   CustomProperties Pin (PinId=C0000000000000000000000000000031,PinName="Condition",Direction="EGPD_Input",PinType.PinCategory="bool",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 C0000000000000000000000000000061,),)
+   CustomProperties Pin (PinId=C0000000000000000000000000000032,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_CallFunction_PrintTrue C0000000000000000000000000000040,),)
+   CustomProperties Pin (PinId=C0000000000000000000000000000033,PinName="else",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name="K2Node_CallFunction_PrintTrue"
+   FunctionReference=(MemberParent=Class'"/Script/Engine.KismetSystemLibrary"',MemberName="PrintString")
+   NodeGuid=${G_PRINT_TRUE}
+   NodePosX=760
+   NodePosY=-100
+   CustomProperties Pin (PinId=C0000000000000000000000000000040,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 C0000000000000000000000000000032,),)
+   CustomProperties Pin (PinId=C0000000000000000000000000000041,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,)
+   CustomProperties Pin (PinId=C0000000000000000000000000000042,PinName="InString",Direction="EGPD_Input",PinType.PinCategory="string",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 C0000000000000000000000000000061,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_VariableGet Name="K2Node_VariableGet_Health"
+   VariableReference=(MemberName="Health",MemberGuid=AABBCC00000000000000000000000001)
+   NodeGuid=${G_GET_HEALTH}
+   NodePosX=380
+   NodePosY=220
+   CustomProperties Pin (PinId=C0000000000000000000000000000050,PinName="Health",Direction="EGPD_Output",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 C0000000000000000000000000000060,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_Knot Name="K2Node_Knot_0"
+   NodeGuid=${G_KNOT}
+   NodePosX=560
+   NodePosY=180
+   CustomProperties Pin (PinId=C0000000000000000000000000000060,PinName="InputPin",Direction="EGPD_Input",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableGet_Health C0000000000000000000000000000050,),)
+   CustomProperties Pin (PinId=C0000000000000000000000000000061,PinName="OutputPin",Direction="EGPD_Output",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 C0000000000000000000000000000031,K2Node_CallFunction_PrintTrue C0000000000000000000000000000042,),)
+End Object
+`;
+
 function makeSnapshot(graphs: Record<string, string>): AssetSnapshot {
   return {
     ok: true,
@@ -169,20 +222,26 @@ function makeSnapshot(graphs: Record<string, string>): AssetSnapshot {
 const OURS = makeSnapshot({ EventGraph: EVENT_GRAPH_OURS });
 const THEIRS = makeSnapshot({ EventGraph: EVENT_GRAPH_THEIRS });
 
-const DIFFS: GraphDiff[] = [
+const ANCESTOR = makeSnapshot({ EventGraph: EVENT_GRAPH_ANCESTOR });
+
+// Three-way: SET_HEALTH = ModifiedInTheirs (theirs added MaxHealth pin)
+//            PRINT_FALSE = AddedInOurs
+//            GET_MAX = AddedInTheirs
+const THREE_WAY_DIFFS: ThreeWayGraphDiff[] = [
   {
     name: "EventGraph",
     onlyInOurs: false,
     onlyInTheirs: false,
+    onlyInAncestor: false,
     nodeStatuses: {
       [G_BEGINPLAY]:   "unchanged",
-      [G_SET_HEALTH]:  "changed",
+      [G_SET_HEALTH]:  "modifiedInTheirs",
       [G_BRANCH]:      "unchanged",
       [G_PRINT_TRUE]:  "unchanged",
       [G_GET_HEALTH]:  "unchanged",
       [G_KNOT]:        "unchanged",
-      [G_PRINT_FALSE]: "removed",
-      [G_GET_MAX]:     "added",
+      [G_PRINT_FALSE]: "addedInOurs",
+      [G_GET_MAX]:     "addedInTheirs",
     },
   },
 ];
@@ -207,9 +266,17 @@ export default function BlueprintTest() {
           letterSpacing: "0.04em",
         }}
       >
-        BP_Base merge conflict — Alice (Ours) adds a False-branch PrintString; Bob (Theirs) feeds SET Health from a new MaxHealth getter.
+        BP_Base 3-way conflict — Alice (Ours) adds False-branch PrintString; Bob (Theirs) feeds SET Health from MaxHealth. No real conflict — Take Both auto-merges.
       </div>
-      <GraphView ours={OURS} theirs={THEIRS} graphDiffs={DIFFS} />
+      <GraphView
+        ours={OURS}
+        theirs={THEIRS}
+        graphDiffs={[]}
+        ancestor={ANCESTOR}
+        threeWayDiffs={THREE_WAY_DIFFS}
+        selections={new Map()}
+        onSelectionChange={() => {}}
+      />
     </div>
   );
 }
