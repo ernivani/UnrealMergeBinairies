@@ -14,6 +14,8 @@
 #include "UObject/SoftObjectPtr.h"
 #include "Dom/JsonValue.h"
 #include "Misc/PackagePath.h"
+#include "BlueprintExporter.h"
+#include "Engine/Blueprint.h"
 
 namespace
 {
@@ -145,6 +147,21 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
     });
 
     Asset->SetArrayField(TEXT("properties"), Entries);
+
+    // Blueprint graph export — only for Blueprint assets.
+    if (UBlueprint* BP = Cast<UBlueprint>(Primary))
+    {
+        const TSharedRef<FJsonObject> GraphsObj = MakeShared<FJsonObject>();
+        for (const FGraphExport& GE : FBlueprintExporter::ExportGraphs(BP))
+        {
+            GraphsObj->SetStringField(GE.GraphName, GE.GraphText);
+        }
+        Asset->SetObjectField(TEXT("graphs"), GraphsObj);
+    }
+    else
+    {
+        Asset->SetField(TEXT("graphs"), MakeShared<FJsonValueNull>());
+    }
 
     OutResponse->SetBoolField(TEXT("ok"), true);
     OutResponse->SetStringField(TEXT("path"), AbsoluteAssetPath);
