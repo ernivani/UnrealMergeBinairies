@@ -27,6 +27,7 @@ export interface Asset {
   parentClass: string;
   name: string;
   properties: Property[];
+  graphs?: Record<string, string>;
 }
 
 export interface AssetSnapshot {
@@ -47,6 +48,15 @@ export type PropertyChange =
   | { kind: "added";   path: string; ty: string; value: PropertyValue }
   | { kind: "removed"; path: string; ty: string; value: PropertyValue }
   | { kind: "changed"; path: string; ty: string; old: PropertyValue; new: PropertyValue };
+
+export type NodeStatus = "added" | "removed" | "changed" | "unchanged";
+
+export interface GraphDiff {
+  name: string;
+  onlyInOurs: boolean;
+  onlyInTheirs: boolean;
+  nodeStatuses: Record<string, NodeStatus>;
+}
 
 export type AppMode =
   | { kind: "cli" }

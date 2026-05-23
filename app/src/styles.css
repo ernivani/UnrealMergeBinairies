@@ -8,3 +8,16 @@
 body { margin: 0; }
 main  { padding: 1.5rem; }
 h1    { margin-top: 0; }
+
+.uem-diff-added {
+  outline: 2px solid #2d8a4e !important;
+  box-shadow: 0 0 12px rgba(45, 138, 78, 0.5) !important;
+}
+.uem-diff-removed {
+  outline: 2px solid #8a2d2d !important;
+  box-shadow: 0 0 12px rgba(138, 45, 45, 0.5) !important;
+}
+.uem-diff-changed {
+  outline: 2px solid #8a742d !important;
+  box-shadow: 0 0 12px rgba(138, 116, 45, 0.5) !important;
+}

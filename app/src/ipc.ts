@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppMode, AssetSnapshot, PropertyChange } from "./types";
+import type { AppMode, AssetSnapshot, PropertyChange, GraphDiff } from "./types";
 
 export async function getAppMode(): Promise<AppMode> {
   return invoke<AppMode>("get_app_mode");
@@ -21,6 +21,13 @@ export async function diffSnapshots(
   theirs: AssetSnapshot,
 ): Promise<PropertyChange[]> {
   return invoke<PropertyChange[]>("diff_snapshots", { ours, theirs });
+}
+
+export async function diffGraphs(
+  ours: AssetSnapshot,
+  theirs: AssetSnapshot,
+): Promise<GraphDiff[]> {
+  return invoke<GraphDiff[]>("diff_graphs", { ours, theirs });
 }
 
 export async function applyResolution(
