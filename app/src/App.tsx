@@ -3,6 +3,7 @@ import { getAppMode } from "./ipc";
 import type { AppMode } from "./types";
 import ConflictList from "./views/ConflictList";
 import Diff from "./views/Diff";
+import BlueprintTest from "./views/BlueprintTest";
 
 export default function App() {
   const [mode, setMode] = useState<AppMode | null>(null);
@@ -12,13 +13,9 @@ export default function App() {
     getAppMode().then(setMode).catch((e) => setError(String(e)));
   }, []);
 
+  // No Tauri context (plain browser / pnpm dev): show blueprint smoke test.
   if (error) {
-    return (
-      <main style={{ padding: "1.5rem" }}>
-        <h1>Unreal Merge</h1>
-        <p style={{ color: "#ffb4a8" }}>Failed to load app mode: {error}</p>
-      </main>
-    );
+    return <BlueprintTest />;
   }
   if (!mode) {
     return (

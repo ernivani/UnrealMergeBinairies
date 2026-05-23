@@ -127,6 +127,19 @@ pub fn export_asset(
 }
 
 fn default_sidecar() -> PathBuf {
+    if let Ok(val) = std::env::var("UNREAL_MERGE_SIDECAR") {
+        return PathBuf::from(val);
+    }
+    // In debug builds, prefer the mock sidecar if it lives next to the binary.
+    // This means `pnpm tauri dev` works out of the box without a real UE install.
+    // Override with UNREAL_MERGE_SIDECAR to test against real UE in debug mode.
+    #[cfg(debug_assertions)]
+    if let Ok(exe) = std::env::current_exe() {
+        let mock = exe.with_file_name("mock_ue_sidecar.exe");
+        if mock.exists() {
+            return mock;
+        }
+    }
     PathBuf::from(r"C:\Program Files\Epic Games\UE_5.6\Engine\Binaries\Win64\UnrealEditor.exe")
 }
 

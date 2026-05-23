@@ -18,21 +18,29 @@ export default function GraphPane({ label, side, graphText, diff }: Props) {
     if (!canvas) return;
 
     canvas.innerHTML = "";
-
     if (!graphText) return;
 
-    const blueprintEl = document.createElement("ueb-blueprint");
+    if (!customElements.get("ueb-blueprint")) {
+      // eslint-disable-next-line no-console
+      console.error("ueb-blueprint custom element not registered");
+    }
 
-    const templateEl = document.createElement("template");
-    templateEl.innerHTML = graphText;
-    blueprintEl.appendChild(templateEl);
-    canvas.appendChild(blueprintEl);
+    // ueblueprint's Blueprint constructor sets attributes during construction,
+    // which document.createElement() rejects with NotSupportedError. The HTML
+    // parser path (innerHTML) tolerates this, so we build via markup.
+    // The template text is plain UE serialization, but it contains `<` chars
+    // (none — but quotes and = are fine). We escape `<`, `>`, and `&` defensively.
+    const escaped = graphText
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    canvas.innerHTML =
+      `<ueb-blueprint style="display:block;width:100%;height:100%;--ueb-height:100%">` +
+      `<template>${escaped}</template>` +
+      `</ueb-blueprint>`;
 
     if (!diff) return;
 
-    // ueb-blueprint renders ueb-node children asynchronously (Lit). Use a
-    // MutationObserver to wait until at least one ueb-node appears before
-    // applying the diff overlay — rAF alone fires too early.
     let rafId: number | undefined;
     const observer = new MutationObserver(() => {
       if (canvas.querySelector("ueb-node")) {
