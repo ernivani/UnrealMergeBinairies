@@ -23,18 +23,19 @@ impl std::str::FromStr for Resolution {
     }
 }
 
-/// Copy `ours` or `theirs` over `dest`. Returns Err on Abort (deliberately —
-/// `--git-driver` mode then exits non-zero, signalling Git to leave the
-/// conflict in place).
+/// Copy `ours` or `theirs` over `dest`. Returns Err on Abort.
 pub fn apply_resolution(res: Resolution, ours: &Path, theirs: &Path, dest: &Path) -> Result<()> {
     let source = match res {
         Resolution::Ours => ours,
         Resolution::Theirs => theirs,
         Resolution::Abort => bail!("aborted by user; conflict left in place"),
     };
+    apply_merged_file(source, dest)
+}
 
-    // If dest is read-only (e.g. LFS lockable), clear the bit before writing
-    // and restore it after. This is spec §8 case 8a.
+/// Copy `source` over `dest`, preserving the read-only bit if `dest` had it
+/// set (e.g. for LFS-locked files — spec §8 case 8a).
+pub fn apply_merged_file(source: &Path, dest: &Path) -> Result<()> {
     let dest_meta = std::fs::metadata(dest).ok();
     let was_readonly = dest_meta
         .as_ref()
