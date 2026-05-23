@@ -36,16 +36,46 @@ fn extract_guid(node_text: &str) -> Option<String> {
 }
 
 // Splits UE serialization text into per-node blobs keyed by NodeGuid.
-// Assumption: NodeGuid lines appear only at top-level nodes; nested Begin Object
-// blocks (sub-objects within a node) are skipped because they lack a NodeGuid line.
+// Uses depth-tracking to correctly handle nodes that contain nested Begin Object
+// / End Object sub-objects (e.g., pins, default sub-objects).
+// Only extracts NodeGuid from depth-1 (top-level node) properties.
 // Duplicate GUIDs overwrite silently — malformed assets may lose nodes from diff.
 fn parse_node_blobs(text: &str) -> HashMap<String, String> {
     let mut result = HashMap::new();
-    for part in text.split("Begin Object").skip(1) {
-        let end_idx = part.find("End Object").unwrap_or(part.len());
-        let node_text = &part[..end_idx];
-        if let Some(guid) = extract_guid(node_text) {
-            result.insert(guid, node_text.to_string());
+    let mut in_node = false;
+    let mut depth: usize = 0;
+    let mut node_lines: Vec<&str> = Vec::new();
+    let mut node_guid: Option<String> = None;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if !in_node {
+            if trimmed.starts_with("Begin Object") {
+                in_node = true;
+                depth = 1;
+                node_lines.clear();
+                node_guid = None;
+                node_lines.push(line);
+            }
+        } else {
+            node_lines.push(line);
+            if trimmed.starts_with("Begin Object") {
+                depth += 1;
+            } else if trimmed.starts_with("End Object") {
+                depth -= 1;
+                if depth == 0 {
+                    if let Some(guid) = node_guid.take() {
+                        result.insert(guid, node_lines.join("\n"));
+                    }
+                    in_node = false;
+                    node_lines.clear();
+                }
+            } else if depth == 1 {
+                // Only extract NodeGuid from top-level node properties.
+                if let Some(rest) = trimmed.strip_prefix("NodeGuid=") {
+                    node_guid = Some(rest.trim().to_string());
+                }
+            }
         }
     }
     result
@@ -198,5 +228,39 @@ End Object
         let new_graph = diffs.iter().find(|d| d.name == "NewGraph").unwrap();
         assert!(!new_graph.only_in_ours);
         assert!(new_graph.only_in_theirs);
+    }
+
+    const NODE_WITH_SUBOBJ: &str = "\
+Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
+   NodeGuid=DDDDDDDD000000000000000000000004
+   Begin Object Name=\"SubPin_0\"
+      PinName=\"execute\"
+   End Object
+   NodePosX=100
+End Object
+";
+
+    const NODE_WITH_SUBOBJ_CHANGED: &str = "\
+Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
+   NodeGuid=DDDDDDDD000000000000000000000004
+   Begin Object Name=\"SubPin_0\"
+      PinName=\"execute\"
+   End Object
+   NodePosX=200
+End Object
+";
+
+    #[test]
+    fn test_diff_changed_after_subobj() {
+        // Verifies that a property after a nested Begin Object block is included
+        // in the blob comparison. If the parser truncates at the inner End Object,
+        // both blobs would be equal and this test would incorrectly pass as Unchanged.
+        let ours = make_graphs(&[("EventGraph", NODE_WITH_SUBOBJ)]);
+        let theirs = make_graphs(&[("EventGraph", NODE_WITH_SUBOBJ_CHANGED)]);
+        let diffs = diff_graphs_inner(&ours, &theirs);
+        assert_eq!(
+            diffs[0].node_statuses.get("DDDDDDDD000000000000000000000004"),
+            Some(&NodeStatus::Changed)
+        );
     }
 }
