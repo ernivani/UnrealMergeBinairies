@@ -1,0 +1,52 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.toolbar {
+  background: #0d0d1a;
+  border-bottom: 1px solid #2a2a4a;
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #888;
+}
+
+.graphSelect {
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  color: #ccc;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.badgeOurs {
+  background: #4d1e1e;
+  color: #ca7f7f;
+}
+
+.badgeTheirs {
+  background: #1e2e4d;
+  color: #9fb0ca;
+}
+
+.split {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
