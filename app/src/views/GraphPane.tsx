@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import type { GraphDiff } from "../types";
-import { applyDiffOverlay } from "../graphDiff";
+import type { GraphDiff, MergeSide, ThreeWayGraphDiff } from "../types";
+import { applyDiffOverlay, applyThreeWayOverlay } from "../graphDiff";
 import styles from "./GraphPane.module.css";
 
 interface Props {
@@ -8,9 +8,11 @@ interface Props {
   side: "ours" | "theirs";
   graphText: string | undefined;
   diff: GraphDiff | undefined;
+  threeWayDiff?: ThreeWayGraphDiff;
+  selections?: Map<string, MergeSide>;
 }
 
-export default function GraphPane({ label, side, graphText, diff }: Props) {
+export default function GraphPane({ label, side, graphText, diff, threeWayDiff, selections }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -25,11 +27,6 @@ export default function GraphPane({ label, side, graphText, diff }: Props) {
       console.error("ueb-blueprint custom element not registered");
     }
 
-    // ueblueprint's Blueprint constructor sets attributes during construction,
-    // which document.createElement() rejects with NotSupportedError. The HTML
-    // parser path (innerHTML) tolerates this, so we build via markup.
-    // The template text is plain UE serialization, but it contains `<` chars
-    // (none — but quotes and = are fine). We escape `<`, `>`, and `&` defensively.
     const escaped = graphText
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
@@ -39,14 +36,18 @@ export default function GraphPane({ label, side, graphText, diff }: Props) {
       `<template>${escaped}</template>` +
       `</ueb-blueprint>`;
 
-    if (!diff) return;
+    if (!diff && !threeWayDiff) return;
 
     let rafId: number | undefined;
     const observer = new MutationObserver(() => {
       if (canvas.querySelector("ueb-node")) {
         observer.disconnect();
         rafId = requestAnimationFrame(() => {
-          applyDiffOverlay(canvas, diff, side);
+          if (threeWayDiff) {
+            applyThreeWayOverlay(canvas, threeWayDiff, side, selections ?? new Map());
+          } else if (diff) {
+            applyDiffOverlay(canvas, diff, side);
+          }
         });
       }
     });
@@ -57,7 +58,7 @@ export default function GraphPane({ label, side, graphText, diff }: Props) {
       if (rafId !== undefined) cancelAnimationFrame(rafId);
       canvas.innerHTML = "";
     };
-  }, [graphText, diff, side]);
+  }, [graphText, diff, threeWayDiff, selections, side]);
 
   return (
     <div className={styles.pane}>
