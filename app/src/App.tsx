@@ -27,10 +27,14 @@ export default function App() {
   }
 
   if (mode.kind === "gitDriverGui") {
-    // In git-driver mode the destination is the working-tree file Git passed
-    // as %A — which Tauri receives as the `ours` argv slot. After the driver
-    // exits, Git uses this path as the resolved file.
-    return <Diff oursPath={mode.ours} theirsPath={mode.theirs} destPath={mode.ours} />;
+    return (
+      <Diff
+        oursPath={mode.ours}
+        theirsPath={mode.theirs}
+        destPath={mode.ours}
+        ancestorPath={mode.ancestor}
+      />
+    );
   }
 
   if (mode.kind === "standaloneGui") {
