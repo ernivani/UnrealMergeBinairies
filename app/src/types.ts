@@ -49,8 +49,11 @@ export type PropertyChange =
   | { kind: "removed"; path: string; ty: string; value: PropertyValue }
   | { kind: "changed"; path: string; ty: string; old: PropertyValue; new: PropertyValue };
 
+// Rust: graph_diff::NodeStatus — serde(rename_all = "lowercase")
+// Values on the wire: "added", "removed", "changed", "unchanged"
 export type NodeStatus = "added" | "removed" | "changed" | "unchanged";
 
+// Rust: graph_diff::GraphDiff — serde(rename_all = "camelCase")
 export interface GraphDiff {
   name: string;
   onlyInOurs: boolean;
