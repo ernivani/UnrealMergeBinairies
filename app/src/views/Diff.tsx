@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { applyResolution, closeWithExit, diffSnapshots, exportAsset } from "../ipc";
-import type { AssetSnapshot, PropertyChange } from "../types";
+import { applyResolution, closeWithExit, diffGraphs, diffSnapshots, exportAsset } from "../ipc";
+import type { AssetSnapshot, GraphDiff, PropertyChange } from "../types";
+import GraphView from "./GraphView";
 import PropertiesDiff from "./PropertiesDiff";
 import Resolve from "./Resolve";
 import styles from "./Diff.module.css";
@@ -19,11 +20,20 @@ interface Props {
 type Status =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; ours: AssetSnapshot; theirs: AssetSnapshot; changes: PropertyChange[] };
+  | {
+      kind: "ready";
+      ours: AssetSnapshot;
+      theirs: AssetSnapshot;
+      changes: PropertyChange[];
+      graphDiffs: GraphDiff[];
+    };
+
+type Tab = "graph" | "properties";
 
 export default function Diff({ oursPath, theirsPath, destPath }: Props) {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [resolving, setResolving] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("graph");
 
   useEffect(() => {
     let cancelled = false;
@@ -33,8 +43,12 @@ export default function Diff({ oursPath, theirsPath, destPath }: Props) {
           exportAsset(oursPath),
           exportAsset(theirsPath),
         ]);
-        const changes = await diffSnapshots(ours, theirs);
-        if (!cancelled) setStatus({ kind: "ready", ours, theirs, changes });
+        const [changes, graphDiffs] = await Promise.all([
+          diffSnapshots(ours, theirs),
+          diffGraphs(ours, theirs),
+        ]);
+        if (!cancelled)
+          setStatus({ kind: "ready", ours, theirs, changes, graphDiffs });
       } catch (e) {
         if (!cancelled) setStatus({ kind: "error", message: String(e) });
       }
@@ -48,10 +62,7 @@ export default function Diff({ oursPath, theirsPath, destPath }: Props) {
   const changedPaths = useMemo(() => {
     if (status.kind !== "ready") return new Set<string>();
     const s = new Set<string>();
-    for (const c of status.changes) {
-      // PropertyChange is internally-tagged in TS (matches Rust's #[serde(tag="kind", rename_all="camelCase")]).
-      s.add(c.path);
-    }
+    for (const c of status.changes) s.add(c.path);
     return s;
   }, [status]);
 
@@ -88,6 +99,8 @@ export default function Diff({ oursPath, theirsPath, destPath }: Props) {
     );
   }
 
+  const isBlueprint = status.ours.asset.class === "Blueprint";
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -100,18 +113,47 @@ export default function Diff({ oursPath, theirsPath, destPath }: Props) {
           theirs sha {status.theirs.package.savedHash.slice(0, 14)}…
         </span>
       </header>
-      <div className={styles.panes}>
-        <PropertiesDiff
-          title="Ours"
-          properties={status.ours.asset.properties}
-          highlight={changedPaths}
+
+      {isBlueprint && (
+        <div className={styles.tabRow}>
+          <div
+            className={`${styles.tab} ${activeTab === "graph" ? styles.tabActive : ""}`}
+            onClick={() => setActiveTab("graph")}
+          >
+            Graph
+          </div>
+          <div
+            className={`${styles.tab} ${activeTab === "properties" ? styles.tabActive : ""}`}
+            onClick={() => setActiveTab("properties")}
+          >
+            Properties
+          </div>
+        </div>
+      )}
+
+      {(!isBlueprint || activeTab === "properties") && (
+        <div className={styles.panes}>
+          <PropertiesDiff
+            title="Ours"
+            properties={status.ours.asset.properties}
+            highlight={changedPaths}
+          />
+          <PropertiesDiff
+            title="Theirs"
+            properties={status.theirs.asset.properties}
+            highlight={changedPaths}
+          />
+        </div>
+      )}
+
+      {isBlueprint && activeTab === "graph" && (
+        <GraphView
+          ours={status.ours}
+          theirs={status.theirs}
+          graphDiffs={status.graphDiffs}
         />
-        <PropertiesDiff
-          title="Theirs"
-          properties={status.theirs.asset.properties}
-          highlight={changedPaths}
-        />
-      </div>
+      )}
+
       <Resolve
         onTakeOurs={() => resolve("ours")}
         onTakeTheirs={() => resolve("theirs")}

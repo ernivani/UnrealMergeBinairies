@@ -38,3 +38,34 @@
     overflow: auto;
     color: #ffb4a8;
 }
+
+.tabRow {
+  display: flex;
+  gap: 2px;
+  padding: 6px 12px 0;
+  background: #0d0d1a;
+  border-bottom: 1px solid #2a2a4a;
+  flex-shrink: 0;
+}
+
+.tab {
+  padding: 5px 16px;
+  border-radius: 4px 4px 0 0;
+  font-size: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: #888;
+  background: transparent;
+  user-select: none;
+}
+
+.tab:hover {
+  color: #ccc;
+}
+
+.tabActive {
+  background: #1d1f23;
+  border-color: #2a2a4a;
+  color: #ccc;
+}
