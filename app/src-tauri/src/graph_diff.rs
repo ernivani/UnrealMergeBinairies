@@ -1,3 +1,9 @@
+//! Graph-level diff for UE Blueprint assets.
+//!
+//! Parses UE serialization text (Begin Object / End Object blocks) into
+//! per-node blobs keyed by NodeGuid, then computes Added/Removed/Changed/Unchanged
+//! status for each node across two versions of the same graph.
+
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +35,10 @@ fn extract_guid(node_text: &str) -> Option<String> {
     None
 }
 
+// Splits UE serialization text into per-node blobs keyed by NodeGuid.
+// Assumption: NodeGuid lines appear only at top-level nodes; nested Begin Object
+// blocks (sub-objects within a node) are skipped because they lack a NodeGuid line.
+// Duplicate GUIDs overwrite silently — malformed assets may lose nodes from diff.
 fn parse_node_blobs(text: &str) -> HashMap<String, String> {
     let mut result = HashMap::new();
     for part in text.split("Begin Object").skip(1) {
@@ -64,6 +74,8 @@ pub fn diff_graphs_inner(
 
         for (guid, ours_blob) in &ours_nodes {
             if let Some(theirs_blob) = theirs_nodes.get(guid) {
+                // Text equality includes whitespace; re-serialized-but-semantically-equal
+                // nodes may report Changed if indentation or line endings differ.
                 if ours_blob == theirs_blob {
                     node_statuses.insert(guid.clone(), NodeStatus::Unchanged);
                 } else {
