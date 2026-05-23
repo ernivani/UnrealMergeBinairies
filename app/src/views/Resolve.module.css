@@ -42,3 +42,15 @@
   border-color: var(--ue-err);
   color: #ffb4a8;
 }
+
+.both {
+  background: rgba(0, 137, 255, 0.15);
+  border-color: rgba(0, 137, 255, 0.5);
+  color: #79bdff;
+}
+
+.both:hover:not(:disabled) {
+  background: rgba(0, 137, 255, 0.28);
+  border-color: var(--ue-accent);
+  color: #fff;
+}
