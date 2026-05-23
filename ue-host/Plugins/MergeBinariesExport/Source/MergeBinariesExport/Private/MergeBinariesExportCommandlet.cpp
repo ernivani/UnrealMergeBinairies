@@ -1,5 +1,6 @@
 #include "MergeBinariesExportCommandlet.h"
 #include "AssetExporter.h"
+#include "MergeApplier.h"
 #include "JsonRpcLoop.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMergeBinariesExport, Log, All);
@@ -36,6 +37,11 @@ int32 UMergeBinariesExportCommandlet::Main(const FString& Params)
             return;
         }
         FAssetExporter::Export(Path, OutResponse);
+    });
+
+    Handlers.Add(TEXT("merge"), [](const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonObject>& OutResponse)
+    {
+        FMergeApplier::Apply(Req, OutResponse);
     });
 
     return FJsonRpcLoop::Run(Handlers);
