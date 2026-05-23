@@ -65,3 +65,26 @@ export type AppMode =
   | { kind: "cli" }
   | { kind: "standaloneGui" }
   | { kind: "gitDriverGui"; ancestor: string; ours: string; theirs: string; path: string };
+
+// Rust: graph_diff::ThreeWayNodeStatus — serde(rename_all = "camelCase")
+export type ThreeWayNodeStatus =
+  | "unchanged"
+  | "modifiedInOurs" | "modifiedInTheirs" | "modifiedInBoth"
+  | "addedInOurs" | "addedInTheirs" | "addedInBoth" | "addedInBothConflict"
+  | "removedInOurs" | "removedInTheirs" | "removedInBoth"
+  | "modifyDeleteConflict";
+
+// Rust: graph_diff::ThreeWayGraphDiff — serde(rename_all = "camelCase")
+export interface ThreeWayGraphDiff {
+  name: string;
+  onlyInOurs: boolean;
+  onlyInTheirs: boolean;
+  onlyInAncestor: boolean;
+  nodeStatuses: Record<string, ThreeWayNodeStatus>;
+}
+
+export type MergeSide = "ours" | "theirs" | "skip";
+
+export function isConflictStatus(s: ThreeWayNodeStatus): boolean {
+  return s === "modifiedInBoth" || s === "addedInBothConflict" || s === "modifyDeleteConflict";
+}

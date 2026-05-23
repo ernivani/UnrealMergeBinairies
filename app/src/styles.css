@@ -81,3 +81,24 @@ code, pre, .mono {
   outline: 2px solid var(--ue-warn) !important;
   box-shadow: 0 0 14px rgba(208, 160, 64, 0.55) !important;
 }
+
+/* Three-way diff overlay classes (Plan 5). */
+.uem-three-way-added {
+  outline: 2px solid #2d8a4e !important;
+  box-shadow: 0 0 12px rgba(45, 138, 78, 0.5) !important;
+}
+.uem-three-way-removed {
+  outline: 2px solid #8a2d2d !important;
+  box-shadow: 0 0 12px rgba(138, 45, 45, 0.5) !important;
+}
+.uem-three-way-modified {
+  outline: 2px solid #8a742d !important;
+  box-shadow: 0 0 12px rgba(138, 116, 45, 0.5) !important;
+}
+.uem-three-way-conflict {
+  outline: 2px solid #c038a8 !important;
+  box-shadow: 0 0 16px rgba(192, 56, 168, 0.7) !important;
+}
+.uem-three-way-dimmed {
+  opacity: 0.3 !important;
+}

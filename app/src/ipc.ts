@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { AppMode, AssetSnapshot, PropertyChange, GraphDiff } from "./types";
+import type { AppMode, AssetSnapshot, PropertyChange, GraphDiff, ThreeWayGraphDiff } from "./types";
 
 export async function getAppMode(): Promise<AppMode> {
   return invoke<AppMode>("get_app_mode");
@@ -46,4 +46,27 @@ export async function applyResolution(
 
 export async function closeWithExit(code: number): Promise<void> {
   await invoke<void>("close_with_exit", { code });
+}
+
+export async function diffGraphsThreeWay(
+  ancestor: AssetSnapshot,
+  ours: AssetSnapshot,
+  theirs: AssetSnapshot,
+): Promise<ThreeWayGraphDiff[]> {
+  return invoke<ThreeWayGraphDiff[]>("diff_graphs_three_way", { ancestor, ours, theirs });
+}
+
+export async function applyGraphMerge(
+  ancestorPath: string,
+  destPath: string,
+  mergedGraphs: Record<string, string>,
+  options?: { sidecarOverride?: string; hostProjectOverride?: string },
+): Promise<void> {
+  await invoke<void>("apply_graph_merge", {
+    ancestorPath,
+    destPath,
+    mergedGraphs,
+    sidecarOverride: options?.sidecarOverride,
+    hostProjectOverride: options?.hostProjectOverride,
+  });
 }
