@@ -194,16 +194,17 @@ export default function BlueprintTest() {
         height: "100vh",
         display: "flex",
         flexDirection: "column",
-        background: "#1d1f23",
+        background: "var(--ue-bg-deep)",
       }}
     >
       <div
         style={{
-          padding: "8px 16px",
-          background: "#12121e",
-          borderBottom: "1px solid #2a2a4a",
-          fontSize: 12,
-          color: "#888",
+          padding: "8px 14px",
+          background: "linear-gradient(to bottom, #1f1f1f, #161616)",
+          borderBottom: "1px solid var(--ue-border)",
+          fontSize: 11,
+          color: "var(--ue-text-dim)",
+          letterSpacing: "0.04em",
         }}
       >
         BP_Base merge conflict — Alice (Ours) adds a False-branch PrintString; Bob (Theirs) feeds SET Health from a new MaxHealth getter.

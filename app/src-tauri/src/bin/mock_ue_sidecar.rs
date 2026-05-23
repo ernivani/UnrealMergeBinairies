@@ -4,6 +4,13 @@
 //! the same set of cmds (`ping`, `export`, `quit`), and emits a couple of fake log
 //! lines on stdout before its first response — so consumers' brace-counter
 //! extractors are exercised against realistic noise.
+//!
+//! The canned export returns a BP_Base Blueprint with one EventGraph that
+//! mirrors the real BP_Base in ue-host/Content:
+//!   BeginPlay → SET Health=0.0 → Branch (Condition fed via knot from Get Health)
+//!               → True → PrintString (InString fed from same knot)
+//! Ours (v1) adds a False-branch "Health was zero" PrintString.
+//! Theirs (v2) feeds SET Health from a new MaxHealth getter.
 
 use std::io::{self, BufRead, Write};
 
@@ -24,205 +31,152 @@ fn emit_fake_log() {
     out.flush().unwrap();
 }
 
-// ── EventGraph ────────────────────────────────────────────────────────────────
-// Shared nodes (both sides): BeginPlay event, Branch, PrintString, SetHealth
-// Changed (same GUID, different wiring/values): Branch condition, PrintString message
-// Removed (only in Ours): a legacy "DebugLog" call
-// Added (only in Theirs): new "ApplyDamage" call + a Sequence node
+const EVENT_GRAPH_OURS: &str = r#"Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name="K2Node_Event_BeginPlay"
+   EventReference=(MemberParent=Class'"/Script/Engine.Actor"',MemberName="ReceiveBeginPlay")
+   bOverrideFunction=True
+   NodeGuid=00000000000000000000000000000001
+   NodePosX=-80
+   NodePosY=0
+   CustomProperties Pin (PinId=A0000000000000000000000000000010,PinName="OutputDelegate",Direction="EGPD_Output",PinType.PinCategory="delegate",PinType.PinSubCategory="MulticastDelegateProperty",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,)
+   CustomProperties Pin (PinId=A0000000000000000000000000000011,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableSet_Health A0000000000000000000000000000020,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_VariableSet Name="K2Node_VariableSet_Health"
+   VariableReference=(MemberName="Health",MemberGuid=AABBCC00000000000000000000000001)
+   NodeGuid=00000000000000000000000000000002
+   NodePosX=180
+   NodePosY=0
+   CustomProperties Pin (PinId=A0000000000000000000000000000020,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Event_BeginPlay A0000000000000000000000000000011,),)
+   CustomProperties Pin (PinId=A0000000000000000000000000000021,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 A0000000000000000000000000000030,),)
+   CustomProperties Pin (PinId=A0000000000000000000000000000022,PinName="Health",Direction="EGPD_Input",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,DefaultValue="0.0",)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_IfThenElse Name="K2Node_IfThenElse_0"
+   NodeGuid=00000000000000000000000000000003
+   NodePosX=460
+   NodePosY=0
+   CustomProperties Pin (PinId=A0000000000000000000000000000030,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableSet_Health A0000000000000000000000000000021,),)
+   CustomProperties Pin (PinId=A0000000000000000000000000000031,PinName="Condition",Direction="EGPD_Input",PinType.PinCategory="bool",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 A0000000000000000000000000000061,),)
+   CustomProperties Pin (PinId=A0000000000000000000000000000032,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_CallFunction_PrintTrue A0000000000000000000000000000040,),)
+   CustomProperties Pin (PinId=A0000000000000000000000000000033,PinName="else",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_CallFunction_PrintFalse A0000000000000000000000000000070,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name="K2Node_CallFunction_PrintTrue"
+   FunctionReference=(MemberParent=Class'"/Script/Engine.KismetSystemLibrary"',MemberName="PrintString")
+   NodeGuid=00000000000000000000000000000004
+   NodePosX=760
+   NodePosY=-100
+   CustomProperties Pin (PinId=A0000000000000000000000000000040,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 A0000000000000000000000000000032,),)
+   CustomProperties Pin (PinId=A0000000000000000000000000000041,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,)
+   CustomProperties Pin (PinId=A0000000000000000000000000000042,PinName="InString",Direction="EGPD_Input",PinType.PinCategory="string",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 A0000000000000000000000000000061,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_VariableGet Name="K2Node_VariableGet_Health"
+   VariableReference=(MemberName="Health",MemberGuid=AABBCC00000000000000000000000001)
+   NodeGuid=00000000000000000000000000000005
+   NodePosX=380
+   NodePosY=220
+   CustomProperties Pin (PinId=A0000000000000000000000000000050,PinName="Health",Direction="EGPD_Output",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 A0000000000000000000000000000060,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_Knot Name="K2Node_Knot_0"
+   NodeGuid=00000000000000000000000000000006
+   NodePosX=560
+   NodePosY=180
+   CustomProperties Pin (PinId=A0000000000000000000000000000060,PinName="InputPin",Direction="EGPD_Input",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableGet_Health A0000000000000000000000000000050,),)
+   CustomProperties Pin (PinId=A0000000000000000000000000000061,PinName="OutputPin",Direction="EGPD_Output",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 A0000000000000000000000000000031,K2Node_CallFunction_PrintTrue A0000000000000000000000000000042,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name="K2Node_CallFunction_PrintFalse"
+   FunctionReference=(MemberParent=Class'"/Script/Engine.KismetSystemLibrary"',MemberName="PrintString")
+   NodeGuid=00000000000000000000000000000007
+   NodePosX=760
+   NodePosY=100
+   CustomProperties Pin (PinId=A0000000000000000000000000000070,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 A0000000000000000000000000000033,),)
+   CustomProperties Pin (PinId=A0000000000000000000000000000071,PinName="InString",Direction="EGPD_Input",PinType.PinCategory="string",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,DefaultValue="Health was zero",)
+End Object
+"#;
 
-const EVENT_GRAPH_OURS: &str = "\
-Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"\n\
-   EventReference=(MemberParent=Class'\"/Script/Engine.Actor\"',MemberName=\"ReceiveBeginPlay\")\n\
-   NodeGuid=00000001000000000000000000000001\n\
-   NodePosX=0\n\
-   NodePosY=0\n\
-   NodeComment=\"Entry point\"\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_IfThenElse Name=\"K2Node_IfThenElse_0\"\n\
-   NodeGuid=00000002000000000000000000000002\n\
-   NodePosX=250\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_0\"\n\
-   FunctionReference=(MemberParent=Class'\"/Script/Engine.KismetSystemLibrary\"',MemberName=\"PrintString\")\n\
-   NodeGuid=00000003000000000000000000000003\n\
-   NodePosX=500\n\
-   NodePosY=-80\n\
-   Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_0\"\n\
-      InString=\"Hello from Ours!\"\n\
-      Duration=2.0\n\
-   End Object\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_1\"\n\
-   FunctionReference=(MemberParent=Class'\"/Script/Engine.KismetSystemLibrary\"',MemberName=\"PrintString\")\n\
-   NodeGuid=00000004000000000000000000000004\n\
-   NodePosX=500\n\
-   NodePosY=80\n\
-   Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_1\"\n\
-      InString=\"DEBUG: legacy log\"\n\
-      Duration=5.0\n\
-   End Object\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_2\"\n\
-   FunctionReference=(MemberName=\"SetActorHiddenInGame\")\n\
-   NodeGuid=00000005000000000000000000000005\n\
-   NodePosX=750\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_VariableSet Name=\"K2Node_VariableSet_0\"\n\
-   VariableReference=(MemberName=\"Health\",MemberGuid=AABB00000000000000000000000000AA)\n\
-   NodeGuid=00000006000000000000000000000006\n\
-   NodePosX=1000\n\
-   NodePosY=0\n\
-End Object\n\
-";
-
-const EVENT_GRAPH_THEIRS: &str = "\
-Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"\n\
-   EventReference=(MemberParent=Class'\"/Script/Engine.Actor\"',MemberName=\"ReceiveBeginPlay\")\n\
-   NodeGuid=00000001000000000000000000000001\n\
-   NodePosX=0\n\
-   NodePosY=0\n\
-   NodeComment=\"Entry point\"\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_IfThenElse Name=\"K2Node_IfThenElse_0\"\n\
-   NodeGuid=00000002000000000000000000000002\n\
-   NodePosX=250\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_0\"\n\
-   FunctionReference=(MemberParent=Class'\"/Script/Engine.KismetSystemLibrary\"',MemberName=\"PrintString\")\n\
-   NodeGuid=00000003000000000000000000000003\n\
-   NodePosX=500\n\
-   NodePosY=-80\n\
-   Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_0\"\n\
-      InString=\"Hello from Theirs — updated message!\"\n\
-      Duration=4.0\n\
-   End Object\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_ExecutionSequence Name=\"K2Node_ExecutionSequence_0\"\n\
-   NodeGuid=00000007000000000000000000000007\n\
-   NodePosX=500\n\
-   NodePosY=80\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_3\"\n\
-   FunctionReference=(MemberName=\"ApplyDamage\")\n\
-   NodeGuid=00000008000000000000000000000008\n\
-   NodePosX=750\n\
-   NodePosY=80\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_2\"\n\
-   FunctionReference=(MemberName=\"SetActorHiddenInGame\")\n\
-   NodeGuid=00000005000000000000000000000005\n\
-   NodePosX=750\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_VariableSet Name=\"K2Node_VariableSet_0\"\n\
-   VariableReference=(MemberName=\"Health\",MemberGuid=AABB00000000000000000000000000AA)\n\
-   NodeGuid=00000006000000000000000000000006\n\
-   NodePosX=1000\n\
-   NodePosY=0\n\
-End Object\n\
-";
-
-// ── TakeDamage function graph ─────────────────────────────────────────────────
-// Ours: simple clamp + set. Theirs: added a death-check branch after the clamp.
-
-const TAKE_DAMAGE_OURS: &str = "\
-Begin Object Class=/Script/BlueprintGraph.K2Node_FunctionEntry Name=\"K2Node_FunctionEntry_0\"\n\
-   NodeGuid=00000010000000000000000000000010\n\
-   NodePosX=0\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_10\"\n\
-   FunctionReference=(MemberParent=Class'\"/Script/Engine.KismetMathLibrary\"',MemberName=\"FClamp\")\n\
-   NodeGuid=00000011000000000000000000000011\n\
-   NodePosX=250\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_VariableSet Name=\"K2Node_VariableSet_1\"\n\
-   VariableReference=(MemberName=\"Health\")\n\
-   NodeGuid=00000012000000000000000000000012\n\
-   NodePosX=500\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_FunctionResult Name=\"K2Node_FunctionResult_0\"\n\
-   NodeGuid=00000013000000000000000000000013\n\
-   NodePosX=750\n\
-   NodePosY=0\n\
-End Object\n\
-";
-
-const TAKE_DAMAGE_THEIRS: &str = "\
-Begin Object Class=/Script/BlueprintGraph.K2Node_FunctionEntry Name=\"K2Node_FunctionEntry_0\"\n\
-   NodeGuid=00000010000000000000000000000010\n\
-   NodePosX=0\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_10\"\n\
-   FunctionReference=(MemberParent=Class'\"/Script/Engine.KismetMathLibrary\"',MemberName=\"FClamp\")\n\
-   NodeGuid=00000011000000000000000000000011\n\
-   NodePosX=250\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_VariableSet Name=\"K2Node_VariableSet_1\"\n\
-   VariableReference=(MemberName=\"Health\")\n\
-   NodeGuid=00000012000000000000000000000012\n\
-   NodePosX=500\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_IfThenElse Name=\"K2Node_IfThenElse_1\"\n\
-   NodeGuid=00000014000000000000000000000014\n\
-   NodePosX=750\n\
-   NodePosY=0\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_11\"\n\
-   FunctionReference=(MemberName=\"Die\")\n\
-   NodeGuid=00000015000000000000000000000015\n\
-   NodePosX=1000\n\
-   NodePosY=-60\n\
-End Object\n\
-Begin Object Class=/Script/BlueprintGraph.K2Node_FunctionResult Name=\"K2Node_FunctionResult_0\"\n\
-   NodeGuid=00000013000000000000000000000013\n\
-   NodePosX=1000\n\
-   NodePosY=60\n\
-End Object\n\
-";
+const EVENT_GRAPH_THEIRS: &str = r#"Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name="K2Node_Event_BeginPlay"
+   EventReference=(MemberParent=Class'"/Script/Engine.Actor"',MemberName="ReceiveBeginPlay")
+   bOverrideFunction=True
+   NodeGuid=00000000000000000000000000000001
+   NodePosX=-80
+   NodePosY=0
+   CustomProperties Pin (PinId=B0000000000000000000000000000010,PinName="OutputDelegate",Direction="EGPD_Output",PinType.PinCategory="delegate",PinType.PinSubCategory="MulticastDelegateProperty",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,)
+   CustomProperties Pin (PinId=B0000000000000000000000000000011,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableSet_Health B0000000000000000000000000000020,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_VariableSet Name="K2Node_VariableSet_Health"
+   VariableReference=(MemberName="Health",MemberGuid=AABBCC00000000000000000000000001)
+   NodeGuid=00000000000000000000000000000002
+   NodePosX=180
+   NodePosY=0
+   CustomProperties Pin (PinId=B0000000000000000000000000000020,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Event_BeginPlay B0000000000000000000000000000011,),)
+   CustomProperties Pin (PinId=B0000000000000000000000000000021,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 B0000000000000000000000000000030,),)
+   CustomProperties Pin (PinId=B0000000000000000000000000000022,PinName="Health",Direction="EGPD_Input",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,DefaultValue="0.0",LinkedTo=(K2Node_VariableGet_MaxHealth B0000000000000000000000000000080,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_IfThenElse Name="K2Node_IfThenElse_0"
+   NodeGuid=00000000000000000000000000000003
+   NodePosX=460
+   NodePosY=0
+   CustomProperties Pin (PinId=B0000000000000000000000000000030,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableSet_Health B0000000000000000000000000000021,),)
+   CustomProperties Pin (PinId=B0000000000000000000000000000031,PinName="Condition",Direction="EGPD_Input",PinType.PinCategory="bool",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 B0000000000000000000000000000061,),)
+   CustomProperties Pin (PinId=B0000000000000000000000000000032,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_CallFunction_PrintTrue B0000000000000000000000000000040,),)
+   CustomProperties Pin (PinId=B0000000000000000000000000000033,PinName="else",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name="K2Node_CallFunction_PrintTrue"
+   FunctionReference=(MemberParent=Class'"/Script/Engine.KismetSystemLibrary"',MemberName="PrintString")
+   NodeGuid=00000000000000000000000000000004
+   NodePosX=760
+   NodePosY=-100
+   CustomProperties Pin (PinId=B0000000000000000000000000000040,PinName="execute",Direction="EGPD_Input",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 B0000000000000000000000000000032,),)
+   CustomProperties Pin (PinId=B0000000000000000000000000000041,PinName="then",Direction="EGPD_Output",PinType.PinCategory="exec",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,)
+   CustomProperties Pin (PinId=B0000000000000000000000000000042,PinName="InString",Direction="EGPD_Input",PinType.PinCategory="string",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 B0000000000000000000000000000061,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_VariableGet Name="K2Node_VariableGet_Health"
+   VariableReference=(MemberName="Health",MemberGuid=AABBCC00000000000000000000000001)
+   NodeGuid=00000000000000000000000000000005
+   NodePosX=380
+   NodePosY=220
+   CustomProperties Pin (PinId=B0000000000000000000000000000050,PinName="Health",Direction="EGPD_Output",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_Knot_0 B0000000000000000000000000000060,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_Knot Name="K2Node_Knot_0"
+   NodeGuid=00000000000000000000000000000006
+   NodePosX=560
+   NodePosY=180
+   CustomProperties Pin (PinId=B0000000000000000000000000000060,PinName="InputPin",Direction="EGPD_Input",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableGet_Health B0000000000000000000000000000050,),)
+   CustomProperties Pin (PinId=B0000000000000000000000000000061,PinName="OutputPin",Direction="EGPD_Output",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_IfThenElse_0 B0000000000000000000000000000031,K2Node_CallFunction_PrintTrue B0000000000000000000000000000042,),)
+End Object
+Begin Object Class=/Script/BlueprintGraph.K2Node_VariableGet Name="K2Node_VariableGet_MaxHealth"
+   VariableReference=(MemberName="MaxHealth",MemberGuid=CCDDEE00000000000000000000000001)
+   NodeGuid=00000000000000000000000000000008
+   NodePosX=-20
+   NodePosY=140
+   CustomProperties Pin (PinId=B0000000000000000000000000000080,PinName="MaxHealth",Direction="EGPD_Output",PinType.PinCategory="float",PinType.bIsConst=False,PinType.bIsReference=False,PinType.bIsWeakPointer=False,LinkedTo=(K2Node_VariableSet_Health B0000000000000000000000000000022,),)
+End Object
+"#;
 
 fn handle_export(path: &str, id: Option<&serde_json::Value>) -> serde_json::Value {
     let is_theirs = path.contains("v2");
-    let (event_graph, take_damage, hash, bool_val, str_val) = if is_theirs {
-        (EVENT_GRAPH_THEIRS, TAKE_DAMAGE_THEIRS,
-         "sha1:1111111111111111111111111111111111111111",
-         true, "theirs-value")
+    let (event_graph, hash, default_health) = if is_theirs {
+        (EVENT_GRAPH_THEIRS, "sha1:1111111111111111111111111111111111111111", 100.0)
     } else {
-        (EVENT_GRAPH_OURS, TAKE_DAMAGE_OURS,
-         "sha1:0000000000000000000000000000000000000000",
-         false, "ours-value")
+        (EVENT_GRAPH_OURS, "sha1:0000000000000000000000000000000000000000", 0.0)
     };
 
     let mut resp = serde_json::json!({
         "ok": true,
         "path": path,
         "package": {
-            "name": "/Game/BP_Character",
+            "name": "/Game/BP_Base",
             "engineVersion": "5.6.0-mock+++UE5+Release-5.6",
             "fileVersionUE5": 1017,
             "savedHash": hash
         },
         "asset": {
             "class": "Blueprint",
-            "parentClass": "/Script/Engine.Character",
-            "name": "BP_Character",
+            "parentClass": "/Script/Engine.Actor",
+            "name": "BP_Base",
             "properties": [
-                {"path": "MaxHealth", "type": "float", "value": 100.0},
-                {"path": "bInvincible", "type": "bool", "value": bool_val},
-                {"path": "CharacterName", "type": "FString", "value": str_val},
-                {"path": "MoveSpeed", "type": "float", "value": if is_theirs { 450.0 } else { 400.0 }}
+                {"path": "DefaultHealth", "type": "float", "value": default_health},
+                {"path": "MaxHealth", "type": "float", "value": 100.0}
             ],
             "graphs": {
-                "EventGraph": event_graph,
-                "TakeDamage": take_damage
+                "EventGraph": event_graph
             }
         }
     });
@@ -253,11 +207,7 @@ fn main() {
         };
         let id = req.get("id").cloned();
         match req.get("cmd").and_then(|c| c.as_str()) {
-            Some("_warmup") => {
-                // Silently absorb the warmup frame so the mock mirrors UE's
-                // first-stdin-line eating behavior.
-                continue;
-            }
+            Some("_warmup") => continue,
             Some("ping") => {
                 let mut resp = serde_json::json!({"ok": true, "pong": "mock_ue_sidecar"});
                 if let Some(v) = &id {

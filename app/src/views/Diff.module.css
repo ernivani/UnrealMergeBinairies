@@ -1,72 +1,81 @@
 .container {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--ue-bg-deep);
 }
 
 .header {
-    padding: 0.6rem 1rem;
-    background: #1a1c20;
-    border-bottom: 1px solid #2c2f36;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.85rem;
+  padding: 8px 14px;
+  background: linear-gradient(to bottom, #1f1f1f, #181818);
+  border-bottom: 1px solid var(--ue-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ue-text);
 }
 
 .summary {
-    color: #888;
-    font-family: ui-monospace, "Cascadia Mono", monospace;
+  color: var(--ue-text-dim);
+  font-family: "Cascadia Mono", ui-monospace, Consolas, monospace;
+  font-size: 11px;
 }
 
 .panes {
-    flex: 1 1 auto;
-    display: flex;
-    min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+  background: var(--ue-bg);
 }
 
 .loading,
 .error {
-    padding: 2rem;
-    color: #aaa;
+  padding: 2rem;
+  color: var(--ue-text-dim);
 }
 
 .error pre {
-    background: #2a1d1d;
-    padding: 0.75rem;
-    border-radius: 4px;
-    overflow: auto;
-    color: #ffb4a8;
+  background: #2a1818;
+  border: 1px solid #4a2020;
+  padding: 0.75rem;
+  border-radius: 3px;
+  overflow: auto;
+  color: #ffb4a8;
+  font-size: 12px;
 }
 
 .tabRow {
   display: flex;
-  gap: 2px;
-  padding: 6px 12px 0;
-  background: #0d0d1a;
-  border-bottom: 1px solid #2a2a4a;
+  gap: 1px;
+  padding: 0 10px;
+  padding-top: 4px;
+  background: var(--ue-bg-deep);
+  border-bottom: 1px solid var(--ue-border);
   flex-shrink: 0;
 }
 
 .tab {
-  padding: 5px 16px;
-  border-radius: 4px 4px 0 0;
-  font-size: 12px;
+  padding: 6px 18px;
+  border-radius: 3px 3px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   font-family: inherit;
   cursor: pointer;
   border: 1px solid transparent;
   border-bottom: none;
-  color: #888;
+  color: var(--ue-text-dim);
   background: transparent;
   user-select: none;
+  transition: color 80ms, background 80ms;
 }
 
-.tab:hover {
-  color: #ccc;
-}
+.tab:hover { color: var(--ue-text); }
 
 .tabActive {
-  background: #1d1f23;
-  border-color: #2a2a4a;
-  color: #ccc;
+  background: var(--ue-bg);
+  border-color: var(--ue-border);
+  color: var(--ue-accent);
 }

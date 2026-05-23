@@ -1,51 +1,56 @@
 .pane {
-    flex: 1 1 0;
-    min-width: 0;
-    overflow: auto;
-    border-right: 1px solid #2c2f36;
-    background: #1d1f23;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: auto;
+  border-right: 1px solid var(--ue-border);
+  background: var(--ue-bg);
 }
 
 .pane:last-child { border-right: none; }
 
 .title {
-    margin: 0;
-    padding: 0.5rem 0.75rem;
-    font-size: 0.95rem;
-    font-weight: 600;
-    background: #25282e;
-    border-bottom: 1px solid #2c2f36;
-    position: sticky;
-    top: 0;
+  margin: 0;
+  padding: 7px 14px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ue-text-dim);
+  background: linear-gradient(to bottom, #1f1f1f, #161616);
+  border-bottom: 1px solid var(--ue-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-    font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", monospace;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: "Cascadia Mono", ui-monospace, Consolas, monospace;
 }
 
 .table th,
 .table td {
-    padding: 0.25rem 0.6rem;
-    border-bottom: 1px solid #25282e;
-    text-align: left;
-    vertical-align: top;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--ue-bg-deep);
+  text-align: left;
+  vertical-align: top;
 }
 
 .table th {
-    font-weight: 500;
-    background: #2a2d33;
-    color: #b8b8b8;
+  font-weight: 500;
+  background: var(--ue-bg-raised);
+  color: var(--ue-text-dim);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.colPath  { white-space: nowrap; color: #d5d5d5; }
-.colType  { color: #888; white-space: nowrap; }
-.colValue { color: #9ab; word-break: break-all; }
+.colPath  { white-space: nowrap; color: var(--ue-text); }
+.colType  { color: var(--ue-text-faint); white-space: nowrap; }
+.colValue { color: #7ab4e0; word-break: break-all; }
 
-.changed {
-    background: rgba(255, 170, 60, 0.07);
-}
-.changed .colPath  { color: #ffc66d; }
-.changed .colValue { color: #ffe1a3; }
+.changed { background: rgba(208, 160, 64, 0.08); }
+.changed .colPath  { color: var(--ue-warn); }
+.changed .colValue { color: #e6c97a; }

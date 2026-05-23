@@ -4,44 +4,57 @@
   flex: 1;
   overflow: hidden;
   min-height: 0;
+  background: var(--ue-bg);
 }
 
 .toolbar {
-  background: #0d0d1a;
-  border-bottom: 1px solid #2a2a4a;
-  padding: 4px 12px;
+  background: var(--ue-bg-deep);
+  border-bottom: 1px solid var(--ue-border);
+  padding: 6px 14px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-shrink: 0;
   font-size: 11px;
-  color: #888;
+  color: var(--ue-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .graphSelect {
-  background: #1a1a2e;
-  border: 1px solid #2a2a4a;
-  color: #ccc;
-  padding: 3px 8px;
+  background: var(--ue-bg-raised);
+  border: 1px solid var(--ue-border);
+  color: var(--ue-text);
+  padding: 4px 8px;
   border-radius: 3px;
   font-size: 11px;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
 }
+.graphSelect:hover { border-color: var(--ue-border-strong); }
+.graphSelect:focus { outline: 1px solid var(--ue-accent); }
 
 .badge {
   font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 8px;
+  padding: 2px 6px;
+  border-radius: 2px;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid;
 }
 
 .badgeOurs {
-  background: #4d1e1e;
-  color: #ca7f7f;
+  background: rgba(196, 69, 69, 0.15);
+  color: #e08080;
+  border-color: rgba(196, 69, 69, 0.6);
 }
 
 .badgeTheirs {
-  background: #1e2e4d;
-  color: #9fb0ca;
+  background: rgba(0, 137, 255, 0.15);
+  color: #6ab4ff;
+  border-color: rgba(0, 137, 255, 0.6);
 }
 
 .split {
