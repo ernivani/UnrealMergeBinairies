@@ -31,8 +31,8 @@ pub fn diff_snapshots(ours: AssetSnapshot, theirs: AssetSnapshot) -> Vec<Propert
 }
 
 pub fn diff_graphs_ipc_inner(ours: &AssetSnapshot, theirs: &AssetSnapshot) -> Vec<GraphDiff> {
-    let ours_graphs = ours.asset.graphs.as_ref().cloned().unwrap_or_default();
-    let theirs_graphs = theirs.asset.graphs.as_ref().cloned().unwrap_or_default();
+    let ours_graphs = ours.asset.graphs.clone().unwrap_or_default();
+    let theirs_graphs = theirs.asset.graphs.clone().unwrap_or_default();
     diff_graphs_inner(&ours_graphs, &theirs_graphs)
 }
 
