@@ -35,6 +35,11 @@ export default function Diff({ oursPath, theirsPath, destPath }: Props) {
   const [resolving, setResolving] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("graph");
 
+  // Reset to Graph tab when a new conflict is opened.
+  useEffect(() => {
+    setActiveTab("graph");
+  }, [oursPath, theirsPath]);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -99,7 +104,9 @@ export default function Diff({ oursPath, theirsPath, destPath }: Props) {
     );
   }
 
-  const isBlueprint = status.ours.asset.class === "Blueprint";
+  const isBlueprint =
+    status.ours.asset.class === "Blueprint" ||
+    status.theirs.asset.class === "Blueprint";
 
   return (
     <div className={styles.container}>
@@ -116,18 +123,18 @@ export default function Diff({ oursPath, theirsPath, destPath }: Props) {
 
       {isBlueprint && (
         <div className={styles.tabRow}>
-          <div
+          <button
             className={`${styles.tab} ${activeTab === "graph" ? styles.tabActive : ""}`}
             onClick={() => setActiveTab("graph")}
           >
             Graph
-          </div>
-          <div
+          </button>
+          <button
             className={`${styles.tab} ${activeTab === "properties" ? styles.tabActive : ""}`}
             onClick={() => setActiveTab("properties")}
           >
             Properties
-          </div>
+          </button>
         </div>
       )}
 
