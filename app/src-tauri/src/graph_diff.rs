@@ -25,16 +25,6 @@ pub struct GraphDiff {
     pub node_statuses: HashMap<String, NodeStatus>,
 }
 
-fn extract_guid(node_text: &str) -> Option<String> {
-    for line in node_text.lines() {
-        let trimmed = line.trim();
-        if let Some(rest) = trimmed.strip_prefix("NodeGuid=") {
-            return Some(rest.trim().to_string());
-        }
-    }
-    None
-}
-
 // Splits UE serialization text into per-node blobs keyed by NodeGuid.
 // Uses depth-tracking to correctly handle nodes that contain nested Begin Object
 // / End Object sub-objects (e.g., pins, default sub-objects).
