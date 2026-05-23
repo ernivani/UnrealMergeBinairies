@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AssetSnapshot, GraphDiff } from "../types";
 import GraphPane from "./GraphPane";
 import styles from "./GraphView.module.css";
@@ -23,11 +23,19 @@ export default function GraphView({ ours, theirs, graphDiffs }: Props) {
       sorted.unshift("EventGraph");
     }
     return sorted;
-  }, [ours, theirs]);
+  }, [ours.asset.graphs, theirs.asset.graphs]);
 
   const [activeGraph, setActiveGraph] = useState<string>(
     () => allGraphNames[0] ?? "",
   );
+
+  // Reset active graph if the graph list changes (e.g. after data reload).
+  // -1 = not present, 0 = already first — both excluded by > 0 in the memo.
+  useEffect(() => {
+    if (allGraphNames.length > 0 && !allGraphNames.includes(activeGraph)) {
+      setActiveGraph(allGraphNames[0]);
+    }
+  }, [allGraphNames, activeGraph]);
 
   const activeDiff = useMemo(
     () => graphDiffs.find((d) => d.name === activeGraph),
