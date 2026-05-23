@@ -33,7 +33,9 @@ fn main() {
                     unreal_merge::ipc::get_app_mode,
                     unreal_merge::ipc::diff_snapshots,
                     unreal_merge::ipc::diff_graphs,
+                    unreal_merge::ipc::diff_graphs_three_way,
                     unreal_merge::ipc::apply_resolution,
+                    unreal_merge::ipc::apply_graph_merge,
                     unreal_merge::ipc::export_asset,
                     unreal_merge::ipc::close_with_exit,
                 ])
