@@ -32,6 +32,7 @@ fn diff_snapshots_inner_returns_empty_for_identical_inputs() {
             parent_class: "".into(),
             name: "Test".into(),
             properties: vec![],
+            graphs: None,
         },
     };
     let diffs = diff_snapshots_inner(&snap, &snap);

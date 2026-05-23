@@ -12,6 +12,7 @@ pub mod schema;
 pub mod sidecar;
 
 pub use diff::{PropertyChange, diff_properties};
+pub use graph_diff::{GraphDiff, NodeStatus};
 pub use schema::{Asset, AssetSnapshot, ErrorResponse, Package, Property, PropertyValue};
 pub use sidecar::{Sidecar, SidecarConfig, extract_json_objects};
 

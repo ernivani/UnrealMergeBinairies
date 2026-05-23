@@ -4,6 +4,7 @@
 //! the JSON (camelCase) via serde rename, while Rust field names stay snake.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// A full export response from the commandlet.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +50,9 @@ pub struct Asset {
 
     #[serde(default)]
     pub properties: Vec<Property>,
+
+    #[serde(default)]
+    pub graphs: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

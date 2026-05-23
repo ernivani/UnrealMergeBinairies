@@ -4,6 +4,7 @@
 
 use crate::app_mode::AppMode;
 use crate::diff::{PropertyChange, diff_properties};
+use crate::graph_diff::{GraphDiff, diff_graphs_inner};
 use crate::merge;
 use crate::schema::AssetSnapshot;
 use crate::sidecar::{Sidecar, SidecarConfig};
@@ -27,6 +28,17 @@ pub fn diff_snapshots_inner(ours: &AssetSnapshot, theirs: &AssetSnapshot) -> Vec
 #[tauri::command]
 pub fn diff_snapshots(ours: AssetSnapshot, theirs: AssetSnapshot) -> Vec<PropertyChange> {
     diff_snapshots_inner(&ours, &theirs)
+}
+
+pub fn diff_graphs_ipc_inner(ours: &AssetSnapshot, theirs: &AssetSnapshot) -> Vec<GraphDiff> {
+    let ours_graphs = ours.asset.graphs.as_ref().cloned().unwrap_or_default();
+    let theirs_graphs = theirs.asset.graphs.as_ref().cloned().unwrap_or_default();
+    diff_graphs_inner(&ours_graphs, &theirs_graphs)
+}
+
+#[tauri::command]
+pub fn diff_graphs(ours: AssetSnapshot, theirs: AssetSnapshot) -> Vec<GraphDiff> {
+    diff_graphs_ipc_inner(&ours, &theirs)
 }
 
 pub fn apply_resolution_inner(
