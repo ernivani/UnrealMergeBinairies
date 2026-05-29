@@ -232,7 +232,12 @@ pub fn export_asset(
     let exe = sidecar_override
         .map(PathBuf::from)
         .unwrap_or_else(default_sidecar);
-    let host_project = resolve_host_project(Path::new(&path), host_project_override);
+    // EXPORT uses an isolated host project (ue-host), NOT the asset's own game
+    // project. Git's conflict-side blobs carry the same internal /Game package
+    // name as the real asset; opening the game project makes UE resolve the
+    // already-registered asset instead of the blob, yielding an empty/wrong
+    // export. The bundled host has no such asset, so the blob loads in isolation.
+    let host_project = resolve_export_host_project(host_project_override);
 
     let args = if exe.to_string_lossy().to_lowercase().contains("unrealeditor") {
         vec![
@@ -354,6 +359,20 @@ fn strip_verbatim(p: &Path) -> String {
         return format!(r"\\{}", rest);
     }
     s.strip_prefix(r"\\?\").map(str::to_string).unwrap_or(s)
+}
+
+/// Host project for EXPORT (reading graphs/properties from conflict-side blobs).
+/// Must be a project that does NOT contain the asset, to avoid /Game package
+/// name collisions. Order: explicit override → UNREAL_MERGE_HOST_PROJECT env →
+/// bundled ue-host.
+fn resolve_export_host_project(override_opt: Option<String>) -> PathBuf {
+    if let Some(o) = override_opt {
+        return PathBuf::from(o);
+    }
+    if let Ok(val) = std::env::var("UNREAL_MERGE_HOST_PROJECT") {
+        return PathBuf::from(val);
+    }
+    bundled_host_project()
 }
 
 /// The bundled minimal host project shipped alongside this tool. Used only as a
