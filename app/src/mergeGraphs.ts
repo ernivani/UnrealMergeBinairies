@@ -67,6 +67,61 @@ export function normalizeBlob(blob: string): string {
     .join("\n");
 }
 
+// --- Graph-level resolution (reliable writeback) --------------------------
+// Node-level stitching crashes UE's importer on real graphs (function graphs,
+// mixed node sets). So the WRITE is per-graph: each graph is taken whole from
+// one side. The per-node view is kept only for review.
+
+export type GraphChange = "unchanged" | "oursOnly" | "theirsOnly" | "both";
+
+function nodeSetNorm(text?: string): Set<string> {
+  const s = new Set<string>();
+  for (const [, blob] of parseNodeBlobs(text ?? "")) s.add(normalizeBlob(blob));
+  return s;
+}
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+}
+
+// Did each side change this graph (vs ancestor), comparing normalized node sets.
+export function graphChange(anc?: string, ours?: string, theirs?: string): GraphChange {
+  const a = nodeSetNorm(anc);
+  const oursChanged = !setsEqual(nodeSetNorm(ours), a);
+  const theirsChanged = !setsEqual(nodeSetNorm(theirs), a);
+  if (oursChanged && theirsChanged) return "both";
+  if (oursChanged) return "oursOnly";
+  if (theirsChanged) return "theirsOnly";
+  return "unchanged";
+}
+
+// Winning side for a graph; `sel` only consulted for "both".
+export function graphWinner(change: GraphChange, sel: MergeSide | undefined): "ours" | "theirs" {
+  if (change === "theirsOnly") return "theirs";
+  if (change === "oursOnly" || change === "unchanged") return "ours";
+  return sel === "theirs" ? "theirs" : "ours";
+}
+
+// Graphs the writeback must overwrite onto the ours base: only those where
+// theirs wins (each emitted as theirs' full, internally-consistent text).
+export function buildMergedGraphsByGraph(
+  graphNames: string[],
+  ancestor: Record<string, string>,
+  ours: Record<string, string>,
+  theirs: Record<string, string>,
+  graphSel: Map<string, MergeSide>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const g of graphNames) {
+    const change = graphChange(ancestor[g], ours[g], theirs[g]);
+    if (graphWinner(change, graphSel.get(g)) === "theirs" && theirs[g] != null) {
+      out[g] = theirs[g];
+    }
+  }
+  return out;
+}
+
 // GUIDs whose node is identical (semantically) in both ours and theirs - i.e.
 // "agreed / common" nodes. These are dimmed in the UI so real differences pop.
 export function commonGuids(oursText?: string, theirsText?: string): Set<string> {
@@ -262,6 +317,21 @@ export function buildMergedGraphs(
         picked === "theirs" ? (theirs.has(guid) ? "theirs" : "ours") : ours.has(guid) ? "ours" : "theirs";
       if (nodesBy[side].has(guid)) chosen.set(guid, side);
     }
+
+    // Only emit graphs whose merged result actually differs from ours' base.
+    // The writeback rewrites every emitted graph (clear + re-import), which is
+    // risky for function graphs (entry/result nodes) and pointless when the
+    // result equals ours. If nothing came from theirs and no ours node was
+    // dropped, the ours base is already correct - leave the graph untouched.
+    const oursGuids = new Set(ours.keys());
+    let differs = false;
+    for (const [guid, side] of chosen) {
+      if (side === "theirs" || !oursGuids.has(guid)) { differs = true; break; }
+    }
+    if (!differs) {
+      for (const g of oursGuids) if (!chosen.has(g)) { differs = true; break; }
+    }
+    if (!differs) continue;
 
     const included = new Set(chosen.keys());
     // Output pin map per node (keys -> chosen-side pin ids).
