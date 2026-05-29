@@ -4,6 +4,8 @@
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "EdGraphUtilities.h"
+#include "EdGraphSchema_K2.h"
+#include "K2Node_MacroInstance.h"
 #include "HAL/FileManager.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
@@ -97,13 +99,53 @@ namespace
             }
             TSet<UEdGraphNode*> Imported;
             FEdGraphUtilities::ImportNodesFromText(Graph, PasteText, /*out*/ Imported);
-            // Re-resolve each pasted node from its current connections. Wildcard
-            // pins (e.g. a For Each Loop's Array input) only take a concrete type
-            // from what they're wired to; without this they fall back to the
-            // generic Object type and fail to compile against an Actor array.
+
+            // Wildcard macro pins (e.g. a For Each Loop's Array input) get baked
+            // to generic Object by the headless paste, and notify/refresh won't
+            // downgrade an already-resolved type back to wildcard. Fix per
+            // Approach 3: for each pasted macro instance, record its array/wildcard
+            // links (by node+pin NAME so they survive pin-pointer invalidation),
+            // break them, reconstruct so the pin is genuinely wildcard again, then
+            // reconnect via the schema so type inference flows from the resolved
+            // neighbour at connection time.
+            const UEdGraphSchema_K2* K2 = GetDefault<UEdGraphSchema_K2>();
+            struct FDeferred { UEdGraphNode* MacroNode; FName MacroPin; TArray<TPair<UEdGraphNode*, FName>> Targets; };
+            TArray<FDeferred> Deferred;
+            for (UEdGraphNode* N : Imported)
+            {
+                UK2Node_MacroInstance* Macro = Cast<UK2Node_MacroInstance>(N);
+                if (!Macro) { continue; }
+                for (UEdGraphPin* P : Macro->Pins)
+                {
+                    if (!P || P->LinkedTo.Num() == 0) { continue; }
+                    const bool bWildcardish =
+                        P->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard ||
+                        P->PinType.ContainerType == EPinContainerType::Array;
+                    if (!bWildcardish) { continue; }
+                    FDeferred D;
+                    D.MacroNode = Macro;
+                    D.MacroPin = P->PinName;
+                    for (UEdGraphPin* L : P->LinkedTo)
+                    {
+                        if (L && L->GetOwningNode()) { D.Targets.Emplace(L->GetOwningNode(), L->PinName); }
+                    }
+                    Deferred.Add(MoveTemp(D));
+                    P->BreakAllPinLinks();
+                }
+            }
             for (UEdGraphNode* N : Imported)
             {
                 if (N) { N->ReconstructNode(); }
+            }
+            for (const FDeferred& D : Deferred)
+            {
+                UEdGraphPin* MacroPin = D.MacroNode ? D.MacroNode->FindPin(D.MacroPin) : nullptr;
+                if (!MacroPin) { continue; }
+                for (const TPair<UEdGraphNode*, FName>& T : D.Targets)
+                {
+                    UEdGraphPin* TargetPin = T.Key ? T.Key->FindPin(T.Value) : nullptr;
+                    if (TargetPin && K2) { K2->TryCreateConnection(MacroPin, TargetPin); }
+                }
             }
         }
         Graph->NotifyGraphChanged();
@@ -235,34 +277,10 @@ void FMergeApplier::Apply(const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonOb
         }
     }
 
-    // Re-resolve every node (wildcard pins, macro expansions, dependent types)
-    // from their connections before compiling, so links established by the merge
-    // get their concrete types instead of failing as generic Object.
+    // Settle dependent node/pin types from connections before compiling. The
+    // wildcard-macro fix already happened in PasteNodes (break -> reconstruct ->
+    // reconnect while wildcard); this is a final pass for ordinary nodes.
     FBlueprintEditorUtils::RefreshAllNodes(BP);
-
-    // Wildcard pins (e.g. a For Each Loop's Array) only take their concrete type
-    // when the connection is announced via NotifyPinConnectionListChanged. A
-    // pasted/serialized link doesn't fire that, so do it explicitly for every
-    // connected pin in every graph, then reconstruct again so types settle.
-    {
-        TArray<UEdGraph*> AllGraphs;
-        AllGraphs.Append(BP->UbergraphPages);
-        AllGraphs.Append(BP->FunctionGraphs);
-        AllGraphs.Append(BP->MacroGraphs);
-        for (UEdGraph* G : AllGraphs)
-        {
-            if (!G) { continue; }
-            for (UEdGraphNode* N : G->Nodes)
-            {
-                if (!N) { continue; }
-                for (UEdGraphPin* P : N->Pins)
-                {
-                    if (P && P->LinkedTo.Num() > 0) { N->PinConnectionListChanged(P); }
-                }
-            }
-        }
-        FBlueprintEditorUtils::RefreshAllNodes(BP);
-    }
 
     // Recompile so the generated class matches the new graphs.
     FKismetEditorUtilities::CompileBlueprint(BP, EBlueprintCompileOptions::SkipGarbageCollection);

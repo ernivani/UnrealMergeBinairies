@@ -16,6 +16,7 @@ public class MergeBinariesExport : ModuleRules
             "CoreUObject",
             "Engine",
             "UnrealEd",
+            "BlueprintGraph",
             "Json",
             "JsonUtilities"
         });
