@@ -1,14 +1,14 @@
 //! How the binary should behave for a given invocation. The same `unreal-merge.exe`
-//! is both a Plan 2 CLI (no GUI) and a Plan 3 Tauri app — argv decides which.
+//! is both a Plan 2 CLI (no GUI) and a Plan 3 Tauri app - argv decides which.
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AppMode {
-    /// Plan 2 CLI subcommands — no GUI, hand off to `cli::run`.
+    /// Plan 2 CLI subcommands - no GUI, hand off to `cli::run`.
     Cli,
-    /// No args — open the GUI in standalone mode (scan current dir for conflicts).
+    /// No args - open the GUI in standalone mode (scan current dir for conflicts).
     StandaloneGui,
     /// Git invoked us as a merge driver with 4 positional args.
     GitDriverGui {
@@ -36,7 +36,7 @@ pub fn parse_argv(argv: &[String]) -> AppMode {
                 path: rest[3].clone(),
             };
         }
-        // Wrong arity — fall through to CLI so clap produces a real error.
+        // Wrong arity - fall through to CLI so clap produces a real error.
     }
 
     // Any other argv shape (install/uninstall/scan/export/diff/--help/--version)

@@ -33,7 +33,7 @@ fn create_conflict_repo() -> (TempDir, std::path::PathBuf, String) {
     std::fs::write(path.join("Asset.uasset"), b"MAIN-CONTENT").unwrap();
     git(&["commit", "-q", "-am", "main edit"]);
 
-    // Attempt merge — should fail because binary, leaving conflict.
+    // Attempt merge - should fail because binary, leaving conflict.
     let _ = Command::new("git")
         .args(["merge", "feature", "--no-edit"])
         .current_dir(&path)

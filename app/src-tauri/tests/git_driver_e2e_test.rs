@@ -31,7 +31,7 @@ fn git_driver_theirs_resolves_uasset_conflict() {
     std::fs::write(repo.join("a.uasset"), b"MAIN").unwrap();
     git(&["commit", "-q", "-am", "main"], repo);
 
-    // Attempt merge — expected to leave a conflict (binary file, no built-in merge).
+    // Attempt merge - expected to leave a conflict (binary file, no built-in merge).
     let _ = Command::new("git")
         .args(["merge", "feature", "--no-edit"])
         .current_dir(repo)

@@ -6,7 +6,7 @@
 
 **Architecture:** C++ commandlet exports raw UE serialization text per graph via `FBlueprintEditorUtils::ExportNodesToText`; Rust parses node GUIDs and computes per-node diff status; the frontend uses the `ueblueprint` npm package (web component) to render pixel-identical Blueprint graphs, then injects CSS diff borders by querying `ueb-node` elements and accessing `el.entity.NodeGuid.toString()`.
 
-**Tech Stack:** UE 5.6 C++ (`FBlueprintEditorUtils`, `UEdGraph`), Rust (serde, string parsing — no regex crate), React 18 + TypeScript, `ueblueprint` npm web component library, Tauri 2 IPC, CSS Modules.
+**Tech Stack:** UE 5.6 C++ (`FBlueprintEditorUtils`, `UEdGraph`), Rust (serde, string parsing - no regex crate), React 18 + TypeScript, `ueblueprint` npm web component library, Tauri 2 IPC, CSS Modules.
 
 ---
 
@@ -17,7 +17,7 @@
 | `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.h` | **New** |
 | `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.cpp` | **New** |
 | `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp` | Add `#include` + graph export call after line 147 |
-| `app/src-tauri/src/graph_diff.rs` | **New** — NodeStatus, GraphDiff, parse + diff logic, unit tests |
+| `app/src-tauri/src/graph_diff.rs` | **New** - NodeStatus, GraphDiff, parse + diff logic, unit tests |
 | `app/src-tauri/src/schema.rs` | Add `graphs: Option<HashMap<String, String>>` to `Asset` |
 | `app/src-tauri/src/ipc.rs` | Add `diff_graphs` command + `diff_graphs_inner` |
 | `app/src-tauri/src/lib.rs` | Declare `graph_diff` module; re-export `GraphDiff` |
@@ -26,7 +26,7 @@
 | `app/src/main.tsx` | Import `ueblueprint/dist/css/ueb-style.min.css` |
 | `app/src/types.ts` | Add `NodeStatus`, `GraphDiff`; add `graphs` to `Asset` |
 | `app/src/ipc.ts` | Add `diffGraphs()` |
-| `app/src/graphDiff.ts` | **New** — `applyDiffOverlay` DOM function |
+| `app/src/graphDiff.ts` | **New** - `applyDiffOverlay` DOM function |
 | `app/src/views/GraphPane.tsx` | **New** |
 | `app/src/views/GraphPane.module.css` | **New** |
 | `app/src/views/GraphView.tsx` | **New** |
@@ -36,13 +36,13 @@
 
 ---
 
-### Task 1: C++ BlueprintExporter — new header and implementation
+### Task 1: C++ BlueprintExporter - new header and implementation
 
 **Files:**
 - Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.h`
 - Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.cpp`
 
-There is no unit test for this task — it requires a live UE editor context. The golden test in Task 2 serves as the integration test.
+There is no unit test for this task - it requires a live UE editor context. The golden test in Task 2 serves as the integration test.
 
 - [ ] **Step 1: Create BlueprintExporter.h**
 
@@ -110,17 +110,17 @@ TArray<FGraphExport> FBlueprintExporter::ExportGraphs(UBlueprint* Blueprint)
 ```bash
 git add "ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.h"
 git add "ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.cpp"
-git commit -m "feat(ue): add BlueprintExporter — ExportNodesToText per graph"
+git commit -m "feat(ue): add BlueprintExporter - ExportNodesToText per graph"
 ```
 
 ---
 
-### Task 2: AssetExporter.cpp — call BlueprintExporter, add graphs to JSON
+### Task 2: AssetExporter.cpp - call BlueprintExporter, add graphs to JSON
 
 **Files:**
 - Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp`
 
-Note: `UnrealEd` is already present in `MergeBinariesExport.Build.cs` — no build file change needed.
+Note: `UnrealEd` is already present in `MergeBinariesExport.Build.cs` - no build file change needed.
 
 The insertion point is **after line 147** (`Asset->SetArrayField(TEXT("properties"), Entries);`) and **before** line 149 (`OutResponse->SetBoolField(TEXT("ok"), true);`).
 
@@ -138,7 +138,7 @@ After the existing includes (around line 16), add:
 After line 147 (`Asset->SetArrayField(TEXT("properties"), Entries);`), insert:
 
 ```cpp
-    // Blueprint graph export — only for Blueprint assets.
+    // Blueprint graph export - only for Blueprint assets.
     if (UBlueprint* BP = Cast<UBlueprint>(Primary))
     {
         const TSharedRef<FJsonObject> GraphsObj = MakeShared<FJsonObject>();
@@ -163,12 +163,12 @@ git commit -m "feat(ue): export Blueprint graphs as UE serialization text in ass
 
 ---
 
-### Task 3: graph_diff.rs — GUID parsing and diff logic with unit tests
+### Task 3: graph_diff.rs - GUID parsing and diff logic with unit tests
 
 **Files:**
 - Create: `app/src-tauri/src/graph_diff.rs`
 
-This is pure Rust with no UE dependency — full unit test coverage.
+This is pure Rust with no UE dependency - full unit test coverage.
 
 **Important:** The Cargo.toml has no `regex` crate. Use string parsing only.
 
@@ -375,7 +375,7 @@ From `app/src-tauri/`:
 ```
 cargo test graph_diff 2>&1
 ```
-Expected: compilation error about missing module declaration — that's correct, confirms tests are written.
+Expected: compilation error about missing module declaration - that's correct, confirms tests are written.
 
 - [ ] **Step 3: Commit graph_diff.rs**
 
@@ -386,7 +386,7 @@ git commit -m "feat(rust): add graph_diff module with NodeStatus, GraphDiff, and
 
 ---
 
-### Task 4: Rust wiring — schema, ipc, lib, main
+### Task 4: Rust wiring - schema, ipc, lib, main
 
 **Files:**
 - Modify: `app/src-tauri/src/schema.rs`
@@ -522,12 +522,12 @@ Expected: no errors.
 
 ```bash
 git add app/src-tauri/src/schema.rs app/src-tauri/src/ipc.rs app/src-tauri/src/lib.rs app/src-tauri/src/main.rs
-git commit -m "feat(rust): wire diff_graphs IPC command — schema graphs field, ipc, lib, main"
+git commit -m "feat(rust): wire diff_graphs IPC command - schema graphs field, ipc, lib, main"
 ```
 
 ---
 
-### Task 5: Frontend — install ueblueprint, update types, ipc, CSS
+### Task 5: Frontend - install ueblueprint, update types, ipc, CSS
 
 **Files:**
 - Modify: `app/package.json` (via pnpm)
@@ -649,12 +649,12 @@ git commit -m "feat(frontend): add ueblueprint dep, GraphDiff types, diffGraphs 
 
 ---
 
-### Task 6: graphDiff.ts — DOM overlay function
+### Task 6: graphDiff.ts - DOM overlay function
 
 **Files:**
 - Create: `app/src/graphDiff.ts`
 
-The `ueblueprint` library renders nodes as `<ueb-node>` custom elements. NodeGuid is NOT a DOM data attribute — it is accessed via the `entity` JS property: `el.entity.NodeGuid.toString()`.
+The `ueblueprint` library renders nodes as `<ueb-node>` custom elements. NodeGuid is NOT a DOM data attribute - it is accessed via the `entity` JS property: `el.entity.NodeGuid.toString()`.
 
 - [ ] **Step 1: Create app/src/graphDiff.ts**
 
@@ -698,7 +698,7 @@ Expected: no errors.
 
 ```bash
 git add app/src/graphDiff.ts
-git commit -m "feat(frontend): add applyDiffOverlay — injects diff CSS on ueb-node elements by entity.NodeGuid"
+git commit -m "feat(frontend): add applyDiffOverlay - injects diff CSS on ueb-node elements by entity.NodeGuid"
 ```
 
 ---
@@ -832,12 +832,12 @@ Expected: no errors.
 
 ```bash
 git add app/src/views/GraphPane.tsx app/src/views/GraphPane.module.css
-git commit -m "feat(frontend): add GraphPane component — ueb-blueprint DOM rendering with diff overlay"
+git commit -m "feat(frontend): add GraphPane component - ueb-blueprint DOM rendering with diff overlay"
 ```
 
 ---
 
-### Task 8: GraphView component — two-pane layout with graph switcher
+### Task 8: GraphView component - two-pane layout with graph switcher
 
 **Files:**
 - Create: `app/src/views/GraphView.tsx`
@@ -1004,12 +1004,12 @@ Expected: no errors.
 
 ```bash
 git add app/src/views/GraphView.tsx app/src/views/GraphView.module.css
-git commit -m "feat(frontend): add GraphView — side-by-side graph panes with graph switcher dropdown"
+git commit -m "feat(frontend): add GraphView - side-by-side graph panes with graph switcher dropdown"
 ```
 
 ---
 
-### Task 9: Diff.tsx — Graph/Properties tab switcher
+### Task 9: Diff.tsx - Graph/Properties tab switcher
 
 **Files:**
 - Modify: `app/src/views/Diff.tsx`
@@ -1245,7 +1245,7 @@ Expected: all tests pass (including graph_diff's 6 tests).
 
 ```bash
 git add app/src/views/Diff.tsx app/src/views/Diff.module.css
-git commit -m "feat(frontend): add Graph/Properties tab switcher to Diff — Blueprint assets default to Graph view"
+git commit -m "feat(frontend): add Graph/Properties tab switcher to Diff - Blueprint assets default to Graph view"
 ```
 
 ---

@@ -140,7 +140,7 @@ pub fn apply_graph_merge_inner(
         .map_err(|e| format!("canonicalise {}: {}", target_path.display(), e))?;
     let target_str = abs.to_string_lossy().replace('\\', "/");
     // Strip Windows' \\?\ extended-length prefix (becomes //?/ after the slash
-    // swap) — UE's FPackageName::TryConvertFilenameToLongPackageName doesn't
+    // swap) - UE's FPackageName::TryConvertFilenameToLongPackageName doesn't
     // recognise it and would fail to match the mounted Content dir.
     let target_str = target_str
         .strip_prefix("//?/")
@@ -405,7 +405,7 @@ fn find_uproject_upwards(start: &Path) -> Option<PathBuf> {
 ///   1. explicit override (CLI/IPC param)
 ///   2. the game `.uproject` found by walking up from the asset path
 ///   3. UNREAL_MERGE_HOST_PROJECT env var (manual escape hatch)
-///   4. the bundled ue-host project (fallback — degraded reference resolution)
+///   4. the bundled ue-host project (fallback - degraded reference resolution)
 fn resolve_host_project(near: &Path, override_opt: Option<String>) -> PathBuf {
     if let Some(o) = override_opt {
         return PathBuf::from(o);
@@ -426,7 +426,7 @@ fn resolve_host_project(near: &Path, override_opt: Option<String>) -> PathBuf {
 }
 
 /// Strip Windows' `\\?\` (and `\\?\UNC\`) extended-length prefix that
-/// `std::fs::canonicalize` adds — most external tools (UnrealEditor) don't
+/// `std::fs::canonicalize` adds - most external tools (UnrealEditor) don't
 /// accept verbatim paths.
 fn strip_verbatim(p: &Path) -> String {
     let s = p.to_string_lossy().into_owned();

@@ -1,5 +1,5 @@
 """
-Proof-of-work Blueprint diff from Python — parses .uasset Export Table
+Proof-of-work Blueprint diff from Python - parses .uasset Export Table
 directly to count UObject instances by class. No UE reflection needed.
 
 Why: the Name Table is deduplicated, so a strings-scan can't see that v2
@@ -30,7 +30,7 @@ plausible name table (>50% of entries are printable ASCII identifiers).
 
 Then we locate ExportCount/ExportOffset similarly. Each FObjectExport
 starts with i32 ClassIndex, i32 SuperIndex, [i32 TemplateIndex,] i32
-OuterIndex, FName ObjectName, ... — we read just enough to map each
+OuterIndex, FName ObjectName, ... - we read just enough to map each
 export to its class name.
 """
 
@@ -120,13 +120,13 @@ def parse_uasset(path):
         raise ValueError(f"could not locate Name Table in {path}")
     name_probe, name_count, name_offset, names = found
 
-    # 2) Locate the Export Table — try each candidate (export_count, export_offset)
+    # 2) Locate the Export Table - try each candidate (export_count, export_offset)
     #    where the table can be plausibly parsed AND class indices look valid.
     def try_parse_exports(data, exp_offset, exp_count):
         results = []
         p = exp_offset
         # FObjectExport size varies by UE version; we read fields tolerantly.
-        # Required: ClassIndex (i32). Negative => import (resolved against import table — we don't have it parsed).
+        # Required: ClassIndex (i32). Negative => import (resolved against import table - we don't have it parsed).
         # We just need: for each export, a sensible class identifier.
         # Try fixed offsets: ClassIndex at +0, ObjectName(FName=i32 idx + i32 num) at +16, +20, or +24.
         for _ in range(exp_count):
@@ -142,7 +142,7 @@ def parse_uasset(path):
                     obj_name = names[ni]
                     break
             results.append({"class_index": class_index, "object_name": obj_name})
-            # Advance — entries are typically 80–104 bytes; we'll bail and retry with
+            # Advance - entries are typically 80–104 bytes; we'll bail and retry with
             # different stride if validation fails downstream.
             # We can't know stride without proper version parsing, so use a sentinel:
             # return None to signal caller try a different candidate.
@@ -154,7 +154,7 @@ def parse_uasset(path):
     # FName references to each K2Node_* class across the WHOLE post-summary
     # region. Each export entry contains a ClassIndex pointing into the
     # Import Table; the import table entry contains the class FName. We
-    # don't parse Import Table either — instead, we count how often each
+    # don't parse Import Table either - instead, we count how often each
     # class name's FName-index pair (NameIndex, NameNumber) appears in the
     # raw bytes after the header. UE serializes class references as that
     # 8-byte FName tuple.
@@ -236,7 +236,7 @@ def main():
         json.dump(result, out, indent=2, default=str)
 
     unreal.log("=" * 74)
-    unreal.log("BLUEPRINT DIFF — FName-index reference count per K2Node class")
+    unreal.log("BLUEPRINT DIFF - FName-index reference count per K2Node class")
     unreal.log("=" * 74)
     unreal.log(f"v1: {a['size']:,} bytes  name_count={a['name_count']}  sha={a['sha256'][:16]}...")
     unreal.log(f"v2: {b['size']:,} bytes  name_count={b['name_count']}  sha={b['sha256'][:16]}...")

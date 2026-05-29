@@ -1,4 +1,4 @@
-# Plan 2 — Rust Backend + Git Merge Driver (Headless)
+# Plan 2 - Rust Backend + Git Merge Driver (Headless)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +10,7 @@
 - Rust 1.75+ (`rustup default stable`)
 - Crates: `serde`, `serde_json`, `clap` (derive), `anyhow`, `walkdir`, `tempfile` (dev)
 - Test crates: `assert_cmd`, `predicates`, `pretty_assertions`
-- Mock sidecar for tests: a tiny Rust binary in the same crate (`mock_ue_sidecar`) that speaks the same JSON-RPC protocol — keeps tests UE-free.
+- Mock sidecar for tests: a tiny Rust binary in the same crate (`mock_ue_sidecar`) that speaks the same JSON-RPC protocol - keeps tests UE-free.
 
 **Prerequisites:**
 - Rust toolchain: `winget install Rustlang.Rustup; rustup default stable`. MSVC toolchain (the one we already use for UE).
@@ -47,16 +47,16 @@ app/
         └── git_driver_test.rs   # tmp repo + mock sidecar end-to-end
 ```
 
-The `mock_ue_sidecar` is a second `[[bin]]` declared in the same `Cargo.toml`. It reads JSON lines from stdin and emits canned responses — letting all tests run without UnrealEditor.exe.
+The `mock_ue_sidecar` is a second `[[bin]]` declared in the same `Cargo.toml`. It reads JSON lines from stdin and emits canned responses - letting all tests run without UnrealEditor.exe.
 
 Each file has one responsibility:
-- **`schema.rs`** — pure types (`Package`, `Asset`, `Property`, `PropertyValue`, `AssetSnapshot`). No logic.
-- **`sidecar.rs`** — process spawn, stdin write, stdout read, brace-extraction. Knows nothing about asset semantics.
-- **`diff.rs`** — pure functions: `diff_snapshots(base, ours, theirs) -> Diff`. No I/O.
-- **`merge.rs`** — applies a `Resolution` to the working tree. Knows about file I/O.
-- **`git.rs`** — shells out to `git`. Each function is one Git command.
-- **`installer.rs`** — installer/uninstaller for the merge driver. Idempotent.
-- **`cli.rs`** — clap parsing + top-level dispatch. No business logic.
+- **`schema.rs`** - pure types (`Package`, `Asset`, `Property`, `PropertyValue`, `AssetSnapshot`). No logic.
+- **`sidecar.rs`** - process spawn, stdin write, stdout read, brace-extraction. Knows nothing about asset semantics.
+- **`diff.rs`** - pure functions: `diff_snapshots(base, ours, theirs) -> Diff`. No I/O.
+- **`merge.rs`** - applies a `Resolution` to the working tree. Knows about file I/O.
+- **`git.rs`** - shells out to `git`. Each function is one Git command.
+- **`installer.rs`** - installer/uninstaller for the merge driver. Idempotent.
+- **`cli.rs`** - clap parsing + top-level dispatch. No business logic.
 
 ---
 
@@ -201,7 +201,7 @@ git commit -m "feat(rust): scaffold unreal-merge crate"
 - Modify: `app/src-tauri/src/schema.rs`
 - Create: `app/src-tauri/tests/schema_test.rs`
 
-We deserialize Plan 1's commandlet output into strongly-typed Rust structs. The schema is locked by `Examples/v1.expected.json` and `Examples/v2.expected.json` — those serve as the ground truth.
+We deserialize Plan 1's commandlet output into strongly-typed Rust structs. The schema is locked by `Examples/v1.expected.json` and `Examples/v2.expected.json` - those serve as the ground truth.
 
 - [ ] **Step 1: Write the failing round-trip test**
 
@@ -260,7 +260,7 @@ fn v1_and_v2_have_same_property_count() {
 cd app/src-tauri && cargo test --test schema_test
 ```
 
-Expected: compile error — `unreal_merge::schema::AssetSnapshot` doesn't exist.
+Expected: compile error - `unreal_merge::schema::AssetSnapshot` doesn't exist.
 
 - [ ] **Step 3: Implement the schema types**
 
@@ -330,7 +330,7 @@ pub struct Property {
     pub value: PropertyValue,
 }
 
-/// Property values are dynamic — they can be a primitive (bool/number/string)
+/// Property values are dynamic - they can be a primitive (bool/number/string)
 /// or a typed-summary object for structs/arrays/maps/sets. We accept any JSON.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
@@ -343,7 +343,7 @@ pub enum PropertyValue {
 }
 
 /// Wire-format response when the commandlet reports an error (`ok:false`).
-/// We don't deserialise into AssetSnapshot in that case — call sites should
+/// We don't deserialise into AssetSnapshot in that case - call sites should
 /// branch on `ok` before treating a response as a snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorResponse {
@@ -493,7 +493,7 @@ fn detects_changed_property() {
 cd app/src-tauri && cargo test --test diff_test
 ```
 
-Expected: compile error — `diff` module not found.
+Expected: compile error - `diff` module not found.
 
 - [ ] **Step 3: Implement `diff.rs`**
 
@@ -668,7 +668,7 @@ fn mock_export_returns_canned_snapshot() {
 cd app/src-tauri && cargo test --test mock_sidecar_test
 ```
 
-Expected: tests build but FAIL — current mock binary just prints a banner.
+Expected: tests build but FAIL - current mock binary just prints a banner.
 
 - [ ] **Step 3: Implement the mock**
 
@@ -679,7 +679,7 @@ Replace `app/src-tauri/src/bin/mock_ue_sidecar.rs`:
 //!
 //! Speaks the same JSON-RPC framing (newline-delimited JSON over stdio), supports
 //! the same set of cmds (`ping`, `export`, `quit`), and emits a couple of fake log
-//! lines on stdout before its first response — so consumers' brace-counter
+//! lines on stdout before its first response - so consumers' brace-counter
 //! extractors are exercised against realistic noise.
 
 use std::io::{self, BufRead, Write};
@@ -782,7 +782,7 @@ fn main() {
 }
 ```
 
-The mock uses `serde_json::Value` directly (no schema types) so it stays independent of the production schema — that way schema regressions don't accidentally hide bugs in the production parser.
+The mock uses `serde_json::Value` directly (no schema types) so it stays independent of the production schema - that way schema regressions don't accidentally hide bugs in the production parser.
 
 - [ ] **Step 4: Run to verify it passes**
 
@@ -877,7 +877,7 @@ fn export_against_mock_returns_blueprint_snapshot() {
 cd app/src-tauri && cargo test --test sidecar_test
 ```
 
-Expected: compile error — `sidecar` module doesn't exist.
+Expected: compile error - `sidecar` module doesn't exist.
 
 - [ ] **Step 3: Implement the sidecar**
 
@@ -964,7 +964,7 @@ impl Sidecar {
         let output = child
             .wait_with_output()
             .context("waiting for child")?;
-        // We don't check exit code — UE may exit nonzero for incidental reasons
+        // We don't check exit code - UE may exit nonzero for incidental reasons
         // even when all our exports succeeded. Trust the in-band JSON instead.
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1138,7 +1138,7 @@ fn create_conflict_repo() -> (TempDir, std::path::PathBuf, String) {
     std::fs::write(path.join("Asset.uasset"), b"MAIN-CONTENT").unwrap();
     git(&["commit", "-q", "-am", "main edit"]);
 
-    // Attempt merge — should fail because binary, leaving conflict.
+    // Attempt merge - should fail because binary, leaving conflict.
     let _ = Command::new("git")
         .args(["merge", "feature", "--no-edit"])
         .current_dir(&path)
@@ -1185,7 +1185,7 @@ fn mark_resolved_runs_git_add() {
 cd app/src-tauri && cargo test --test git_test
 ```
 
-Expected: compile error — `git` module doesn't exist.
+Expected: compile error - `git` module doesn't exist.
 
 - [ ] **Step 3: Implement `git.rs`**
 
@@ -1209,7 +1209,7 @@ pub fn list_conflicts(repo: &Path) -> Result<Vec<String>> {
         bail!("git ls-files -u failed: {}", String::from_utf8_lossy(&out.stderr));
     }
     // Format: each entry is `<mode> <sha> <stage>\t<path>\0`. Same path appears
-    // at stages 1, 2, 3 — we dedupe.
+    // at stages 1, 2, 3 - we dedupe.
     let text = String::from_utf8_lossy(&out.stdout);
     let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     for entry in text.split('\0').filter(|e| !e.is_empty()) {
@@ -1310,7 +1310,7 @@ pub mod sidecar;
 cd app/src-tauri && cargo test
 ```
 
-Expected: all tests including the three new git ones PASS. Note: the git tests SKIP if `git` isn't on PATH — but we know it is in this environment.
+Expected: all tests including the three new git ones PASS. Note: the git tests SKIP if `git` isn't on PATH - but we know it is in this environment.
 
 - [ ] **Step 5: Commit**
 
@@ -1402,7 +1402,7 @@ fn handles_readonly_dest() {
 cd app/src-tauri && cargo test --test merge_test
 ```
 
-Expected: compile error — `merge` module doesn't exist.
+Expected: compile error - `merge` module doesn't exist.
 
 - [ ] **Step 3: Implement `merge.rs`**
 
@@ -1434,7 +1434,7 @@ impl std::str::FromStr for Resolution {
     }
 }
 
-/// Copy `ours` or `theirs` over `dest`. Returns Err on Abort (deliberately —
+/// Copy `ours` or `theirs` over `dest`. Returns Err on Abort (deliberately -
 /// `--git-driver` mode then exits non-zero, signalling Git to leave the
 /// conflict in place).
 pub fn apply_resolution(res: Resolution, ours: &Path, theirs: &Path, dest: &Path) -> Result<()> {
@@ -1575,7 +1575,7 @@ fn install_preserves_existing_gitattributes() {
 cd app/src-tauri && cargo test --test installer_test
 ```
 
-Expected: compile error — `installer` doesn't exist.
+Expected: compile error - `installer` doesn't exist.
 
 - [ ] **Step 3: Implement `installer.rs`**
 
@@ -1781,7 +1781,7 @@ fn export_against_nonexistent_file_exits_nonzero() {
             "C:/also/missing.uasset",
         ])
         .unwrap_err();
-    let _ = output; // assert_cmd's `.unwrap_err` means the command exited nonzero — that's enough.
+    let _ = output; // assert_cmd's `.unwrap_err` means the command exited nonzero - that's enough.
 }
 ```
 
@@ -1791,7 +1791,7 @@ fn export_against_nonexistent_file_exits_nonzero() {
 cd app/src-tauri && cargo test --test cli_test
 ```
 
-Expected: build fails — the CLI doesn't accept those args yet.
+Expected: build fails - the CLI doesn't accept those args yet.
 
 - [ ] **Step 3: Implement `cli.rs`**
 
@@ -2147,7 +2147,7 @@ fn git_driver_theirs_resolves_uasset_conflict() {
     std::fs::write(repo.join("a.uasset"), b"MAIN").unwrap();
     git(&["commit", "-q", "-am", "main"], repo);
 
-    // Attempt merge — expected to leave a conflict (binary file, no built-in merge).
+    // Attempt merge - expected to leave a conflict (binary file, no built-in merge).
     let _ = Command::new("git")
         .args(["merge", "feature", "--no-edit"])
         .current_dir(repo)
@@ -2259,7 +2259,7 @@ git commit -m "test(rust): end-to-end --git-driver scenario with env-based resol
 **Files:**
 - Create: `app/src-tauri/tests/real_ue_smoke.rs`
 
-A single ignored test (`#[ignore]`) that, when run with `--ignored`, drives the actual UE 5.6 sidecar against `Examples/v1/BP_MinimalChar.uasset` and asserts we get back a snapshot with `class = "Blueprint"` and 40 properties. This is opt-in because UE invocations are slow and require the toolchain — but it provides the manual-acceptance gate for Plan 2 done criterion #2.
+A single ignored test (`#[ignore]`) that, when run with `--ignored`, drives the actual UE 5.6 sidecar against `Examples/v1/BP_MinimalChar.uasset` and asserts we get back a snapshot with `class = "Blueprint"` and 40 properties. This is opt-in because UE invocations are slow and require the toolchain - but it provides the manual-acceptance gate for Plan 2 done criterion #2.
 
 - [ ] **Step 1: Write the smoke test**
 
@@ -2335,7 +2335,7 @@ cd app/src-tauri && cargo test --test real_ue_smoke -- --ignored --nocapture
 
 Expected: 1 PASS. Takes ~30 seconds because UE boots from cold.
 
-If this fails, the most likely cause is the `default_sidecar()` path mismatch — check that UE 5.6 is at `C:\Program Files\Epic Games\UE_5.6\` and that the `ue-host/Binaries/.../UnrealEditor-MergeBinariesExport.dll` from Plan 1 is present.
+If this fails, the most likely cause is the `default_sidecar()` path mismatch - check that UE 5.6 is at `C:\Program Files\Epic Games\UE_5.6\` and that the `ue-host/Binaries/.../UnrealEditor-MergeBinariesExport.dll` from Plan 1 is present.
 
 - [ ] **Step 3: Commit**
 
@@ -2346,7 +2346,7 @@ git commit -m "test(rust): ignored smoke against real UE 5.6 + Plan 1 fixtures"
 
 ---
 
-## Done criteria — verify before declaring Plan 2 complete
+## Done criteria - verify before declaring Plan 2 complete
 
 Run from the repo root:
 

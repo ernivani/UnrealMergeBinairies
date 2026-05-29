@@ -78,7 +78,7 @@ impl Sidecar {
         let output = child
             .wait_with_output()
             .context("waiting for child")?;
-        // We don't check exit code — UE may exit nonzero for incidental reasons
+        // We don't check exit code - UE may exit nonzero for incidental reasons
         // even when all our exports succeeded. Trust the in-band JSON instead.
 
         let stdout = String::from_utf8_lossy(&output.stdout);

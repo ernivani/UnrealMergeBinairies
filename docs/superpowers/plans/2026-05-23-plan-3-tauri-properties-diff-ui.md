@@ -1,10 +1,10 @@
-# Plan 3 — Tauri Properties-Diff UI
+# Plan 3 - Tauri Properties-Diff UI
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wrap Plan 2's `unreal-merge` Rust crate in a Tauri 2 desktop app so that when Git's merge driver invokes `unreal-merge --git-driver %O %A %B %P` on a `.uasset` conflict, a window opens showing a 3-pane property-level diff (Base / Ours / Theirs) and three buttons (Take Ours / Take Theirs / Abort) that file-copy the chosen side over the working tree and close the window with the exit code Git expects.
 
-**Architecture:** The existing `unreal-merge` binary keeps all of Plan 2's CLI subcommands (`install`, `uninstall`, `scan`, `export`, `diff`) and adds a GUI mode. `main.rs` peeks at argv and either runs the CLI dispatch (no GUI) or builds a Tauri app whose state carries the current `AppMode` (StandaloneScan or GitDriverMerge). The frontend is React 18 + TypeScript 5, built with Vite 5. IPC commands wrap the existing `unreal_merge::*` API surface — no new business logic. Plan 4 will add blueprint graph rendering, the "Open in Unreal" action, and richer diff UI on top of this scaffold.
+**Architecture:** The existing `unreal-merge` binary keeps all of Plan 2's CLI subcommands (`install`, `uninstall`, `scan`, `export`, `diff`) and adds a GUI mode. `main.rs` peeks at argv and either runs the CLI dispatch (no GUI) or builds a Tauri app whose state carries the current `AppMode` (StandaloneScan or GitDriverMerge). The frontend is React 18 + TypeScript 5, built with Vite 5. IPC commands wrap the existing `unreal_merge::*` API surface - no new business logic. Plan 4 will add blueprint graph rendering, the "Open in Unreal" action, and richer diff UI on top of this scaffold.
 
 **Tech Stack:**
 - Tauri 2 (`tauri = "2"`, `tauri-build = "2"`)
@@ -52,12 +52,12 @@ app/                              # tauri "frontend project" root (sibling of sr
 │   └── styles.css                # tiny global stylesheet
 └── src-tauri/                    # Existing Plan 2 Rust crate
     ├── Cargo.toml                # adds tauri + tauri-build deps
-    ├── build.rs                  # new — runs tauri_build::build()
-    ├── tauri.conf.json           # new — Tauri config
+    ├── build.rs                  # new - runs tauri_build::build()
+    ├── tauri.conf.json           # new - Tauri config
     ├── src/
     │   ├── main.rs               # rewritten: mode peek + Tauri builder
-    │   ├── ipc.rs                # new — #[tauri::command] wrappers
-    │   ├── app_mode.rs           # new — AppMode enum
+    │   ├── ipc.rs                # new - #[tauri::command] wrappers
+    │   ├── app_mode.rs           # new - AppMode enum
     │   ├── cli.rs                # unchanged from Plan 2
     │   ├── diff.rs, git.rs, ...  # unchanged
     │   └── lib.rs                # adds app_mode + ipc modules
@@ -65,24 +65,24 @@ app/                              # tauri "frontend project" root (sibling of sr
 ```
 
 Each file has one responsibility:
-- **`main.rs`** — argv peek → either CLI dispatch (Plan 2) or Tauri builder boot.
-- **`app_mode.rs`** — `AppMode` enum and the parsing of argv into it.
-- **`ipc.rs`** — `#[tauri::command]` functions; thin shims over `unreal_merge::*`. No logic.
-- **`tauri.conf.json`** — window config, identifier, build/dev commands, frontend dist path.
-- **`build.rs`** — single call to `tauri_build::build()`.
-- **`vite.config.ts`** — Vite config tuned for Tauri (fixed port, no HMR overlay during cargo invocations).
-- **`tsconfig.json`** — TypeScript strict mode, project references for the node-side config.
-- **`src/main.tsx`** — React root.
-- **`src/App.tsx`** — mode-aware routing (StandaloneScan vs GitDriverMerge).
-- **`src/ipc.ts`** — typed wrappers around `@tauri-apps/api/core::invoke`.
-- **`src/types.ts`** — TypeScript mirrors of `AssetSnapshot`, `PropertyChange`, `AppMode`, etc.
-- **Each view** — one screen / one responsibility.
+- **`main.rs`** - argv peek → either CLI dispatch (Plan 2) or Tauri builder boot.
+- **`app_mode.rs`** - `AppMode` enum and the parsing of argv into it.
+- **`ipc.rs`** - `#[tauri::command]` functions; thin shims over `unreal_merge::*`. No logic.
+- **`tauri.conf.json`** - window config, identifier, build/dev commands, frontend dist path.
+- **`build.rs`** - single call to `tauri_build::build()`.
+- **`vite.config.ts`** - Vite config tuned for Tauri (fixed port, no HMR overlay during cargo invocations).
+- **`tsconfig.json`** - TypeScript strict mode, project references for the node-side config.
+- **`src/main.tsx`** - React root.
+- **`src/App.tsx`** - mode-aware routing (StandaloneScan vs GitDriverMerge).
+- **`src/ipc.ts`** - typed wrappers around `@tauri-apps/api/core::invoke`.
+- **`src/types.ts`** - TypeScript mirrors of `AssetSnapshot`, `PropertyChange`, `AppMode`, etc.
+- **Each view** - one screen / one responsibility.
 
 ---
 
 ## Task 0: Install Node + pnpm, verify toolchain
 
-**Files:** none — environment-only.
+**Files:** none - environment-only.
 
 - [ ] **Step 1: Install Node.js 20 LTS**
 
@@ -117,7 +117,7 @@ node --version
 pnpm --version
 ```
 
-Save the output in your scratchpad — no commit needed (the lockfile in Task 1 freezes the relevant versions).
+Save the output in your scratchpad - no commit needed (the lockfile in Task 1 freezes the relevant versions).
 
 ---
 
@@ -282,7 +282,7 @@ export default function App() {
   return (
     <main>
       <h1>Unreal Merge</h1>
-      <p>Plan 3 scaffold — UI lands in Task 6+.</p>
+      <p>Plan 3 scaffold - UI lands in Task 6+.</p>
     </main>
   );
 }
@@ -432,13 +432,13 @@ Create `app/src-tauri/tauri.conf.json`:
 }
 ```
 
-Note: `frontendDist: "../dist"` is relative to `tauri.conf.json`, which lives at `app/src-tauri/tauri.conf.json`. `../dist` resolves to `app/dist` — where Vite writes the production bundle.
+Note: `frontendDist: "../dist"` is relative to `tauri.conf.json`, which lives at `app/src-tauri/tauri.conf.json`. `../dist` resolves to `app/dist` - where Vite writes the production bundle.
 
-`beforeDevCommand: "pnpm dev"` and `beforeBuildCommand: "pnpm build"` run from the directory containing `app/package.json` — i.e. `app/`. Tauri infers this from the relative position of `frontendDist`.
+`beforeDevCommand: "pnpm dev"` and `beforeBuildCommand: "pnpm build"` run from the directory containing `app/package.json` - i.e. `app/`. Tauri infers this from the relative position of `frontendDist`.
 
 - [ ] **Step 4: Add placeholder icon**
 
-Tauri's `tauri-build` macro requires the icon listed in `bundle.icon` to exist on disk during compilation, even though the bundle target only matters at packaging time. Create a 64×64 placeholder PNG (any valid PNG is fine for now — we won't ship until Plan 4 adds real art).
+Tauri's `tauri-build` macro requires the icon listed in `bundle.icon` to exist on disk during compilation, even though the bundle target only matters at packaging time. Create a 64×64 placeholder PNG (any valid PNG is fine for now - we won't ship until Plan 4 adds real art).
 
 ```powershell
 # Use any 64x64 PNG you have. If none handy, generate a solid-colour one in PowerShell:
@@ -540,7 +540,7 @@ cd app/src-tauri
 cargo test --test app_mode_test
 ```
 
-Expected: compile error — `app_mode` doesn't exist.
+Expected: compile error - `app_mode` doesn't exist.
 
 - [ ] **Step 3: Implement `app_mode.rs`**
 
@@ -548,16 +548,16 @@ Create `app/src-tauri/src/app_mode.rs`:
 
 ```rust
 //! How the binary should behave for a given invocation. The same `unreal-merge.exe`
-//! is both a Plan 2 CLI (no GUI) and a Plan 3 Tauri app — argv decides which.
+//! is both a Plan 2 CLI (no GUI) and a Plan 3 Tauri app - argv decides which.
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum AppMode {
-    /// Plan 2 CLI subcommands — no GUI, hand off to `cli::run`.
+    /// Plan 2 CLI subcommands - no GUI, hand off to `cli::run`.
     Cli,
-    /// No args — open the GUI in standalone mode (scan current dir for conflicts).
+    /// No args - open the GUI in standalone mode (scan current dir for conflicts).
     StandaloneGui,
     /// Git invoked us as a merge driver with 4 positional args.
     GitDriverGui {
@@ -585,7 +585,7 @@ pub fn parse_argv(argv: &[String]) -> AppMode {
                 path: rest[3].clone(),
             };
         }
-        // Wrong arity — fall through to CLI so clap produces a real error.
+        // Wrong arity - fall through to CLI so clap produces a real error.
     }
 
     // Any other argv shape (install/uninstall/scan/export/diff/--help/--version)
@@ -710,7 +710,7 @@ cd app/src-tauri
 cargo test --test ipc_test
 ```
 
-Expected: compile error — `ipc` module doesn't exist.
+Expected: compile error - `ipc` module doesn't exist.
 
 - [ ] **Step 3: Implement `ipc.rs`**
 
@@ -938,7 +938,7 @@ cd app/src-tauri
 cargo build --bin unreal-merge
 ```
 
-Expected: builds cleanly. Tauri's generate_context! macro reads `tauri.conf.json` (added in Task 2) at compile time — if it complains about the frontend bundle, that's fine: we haven't built the frontend yet. The bundle isn't required for `cargo build` (only for `tauri build`).
+Expected: builds cleanly. Tauri's generate_context! macro reads `tauri.conf.json` (added in Task 2) at compile time - if it complains about the frontend bundle, that's fine: we haven't built the frontend yet. The bundle isn't required for `cargo build` (only for `tauri build`).
 
 - [ ] **Step 3: Confirm all Plan 2 tests still pass**
 
@@ -999,7 +999,7 @@ export interface Property {
   value: PropertyValue;
 }
 
-// PropertyValue is `#[serde(untagged)]` on the Rust side — could be primitive
+// PropertyValue is `#[serde(untagged)]` on the Rust side - could be primitive
 // or an object summary for structs/arrays/maps/sets. We model it as `unknown`
 // at the type-system level and let the rendering layer branch.
 export type PropertyValue = unknown;
@@ -1349,7 +1349,7 @@ git commit -m "feat(ui): Resolve action bar (Take Ours / Take Theirs / Abort)"
 - Create: `app/src/views/Diff.tsx`
 - Create: `app/src/views/Diff.module.css`
 
-The Diff view orchestrates: export both sides via IPC, compute the changed-paths set, render two PropertiesDiff panes (Ours, Theirs — Base is omitted from MVP since 2-way diff is sufficient per Plan 2 design), and a Resolve action bar.
+The Diff view orchestrates: export both sides via IPC, compute the changed-paths set, render two PropertiesDiff panes (Ours, Theirs - Base is omitted from MVP since 2-way diff is sufficient per Plan 2 design), and a Resolve action bar.
 
 - [ ] **Step 1: Write the component**
 
@@ -1553,7 +1553,7 @@ git commit -m "feat(ui): Diff view container (exports both sides, computes chang
 - Create: `app/src/views/ConflictList.module.css`
 - Modify: `app/src/App.tsx`
 
-For Plan 3, ConflictList is intentionally minimal: a placeholder message saying "Standalone mode — coming in a follow-up" plus a small input box where the user can paste two paths and jump to a diff. The full "scan repo, list conflicts, click row" workflow is deferred (it needs a `list_conflicts` IPC command and a more elaborate UI; not blocking for MVP).
+For Plan 3, ConflictList is intentionally minimal: a placeholder message saying "Standalone mode - coming in a follow-up" plus a small input box where the user can paste two paths and jump to a diff. The full "scan repo, list conflicts, click row" workflow is deferred (it needs a `list_conflicts` IPC command and a more elaborate UI; not blocking for MVP).
 
 - [ ] **Step 1: Write `ConflictList.tsx`**
 
@@ -1576,7 +1576,7 @@ export default function ConflictList() {
 
   return (
     <main className={styles.root}>
-      <h1>Unreal Merge — Standalone</h1>
+      <h1>Unreal Merge - Standalone</h1>
       <p className={styles.note}>
         The full scan-the-repo workflow is deferred (Plan 4). For now, paste the
         three paths and click <em>Open</em> to view a diff.
@@ -1704,7 +1704,7 @@ export default function App() {
 
   if (mode.kind === "gitDriverGui") {
     // In git-driver mode the destination is the working-tree file Git passed
-    // as %A — which Tauri receives as the `ours` argv slot. After the driver
+    // as %A - which Tauri receives as the `ours` argv slot. After the driver
     // exits, Git uses this path as the resolved file.
     return <Diff oursPath={mode.ours} theirsPath={mode.theirs} destPath={mode.ours} />;
   }
@@ -1736,9 +1736,9 @@ git commit -m "feat(ui): App routing + minimal ConflictList for standalone mode"
 
 ---
 
-## Task 11: Manual smoke — `pnpm tauri dev`
+## Task 11: Manual smoke - `pnpm tauri dev`
 
-**Files:** none — manual verification step.
+**Files:** none - manual verification step.
 
 - [ ] **Step 1: Build the Rust crate once so Tauri's compile is cached**
 
@@ -1747,7 +1747,7 @@ cd app/src-tauri
 cargo build --bin unreal-merge
 ```
 
-Expected: builds cleanly. If `tauri.conf.json`'s `frontendDist` points at a missing dir, that's fine for `cargo build` — only `tauri build` cares.
+Expected: builds cleanly. If `tauri.conf.json`'s `frontendDist` points at a missing dir, that's fine for `cargo build` - only `tauri build` cares.
 
 - [ ] **Step 2: Run `tauri dev` and confirm the window opens**
 
@@ -1762,7 +1762,7 @@ If the window doesn't appear, check:
 - `tauri.conf.json` `devUrl` matches `vite.config.ts` port (1420)
 - Vite dev server is reachable from the same host (`http://127.0.0.1:1420` in your browser)
 
-Don't commit anything here — this is a verification step. If anything misbehaves, fix it before moving on.
+Don't commit anything here - this is a verification step. If anything misbehaves, fix it before moving on.
 
 - [ ] **Step 3: Manual `--git-driver` mode dev**
 
@@ -1775,19 +1775,19 @@ pnpm tauri dev -- -- --git-driver C:\tmp\base C:\tmp\ours.uasset C:\tmp\theirs.u
 
 (The double `--` is intentional: first separates pnpm's args from the tauri-cli, second separates tauri-cli's args from the underlying `cargo run`.)
 
-Expected: the window opens directly into the Diff view, immediately tries to call `exportAsset` against the bogus paths, and shows a red error pane with the failure. That's the correct behaviour — the *routing* is what we're verifying, not a successful export.
+Expected: the window opens directly into the Diff view, immediately tries to call `exportAsset` against the bogus paths, and shows a red error pane with the failure. That's the correct behaviour - the *routing* is what we're verifying, not a successful export.
 
 Press Ctrl+C to close.
 
 - [ ] **Step 4: Note any issues for the next task**
 
-Take notes on any UX awkwardness (cramped table, missing keyboard shortcuts, etc.). These don't block Plan 3 — Plan 4 polishes. Just document.
+Take notes on any UX awkwardness (cramped table, missing keyboard shortcuts, etc.). These don't block Plan 3 - Plan 4 polishes. Just document.
 
 ---
 
 ## Task 12: `pnpm tauri build` produces the production .exe
 
-**Files:** none — a verification + commit-the-lockfile-updates step.
+**Files:** none - a verification + commit-the-lockfile-updates step.
 
 - [ ] **Step 1: Run a release build**
 
@@ -1797,9 +1797,9 @@ pnpm tauri build
 ```
 
 Expected: 5–20 minutes (first time). Produces:
-- `app/dist/` — Vite production bundle
-- `app/src-tauri/target/release/unreal-merge.exe` — the actual single-file binary
-- `app/src-tauri/target/release/bundle/msi/Unreal Merge_0.1.0_x64_en-US.msi` — installer (optional, ignore for now)
+- `app/dist/` - Vite production bundle
+- `app/src-tauri/target/release/unreal-merge.exe` - the actual single-file binary
+- `app/src-tauri/target/release/bundle/msi/Unreal Merge_0.1.0_x64_en-US.msi` - installer (optional, ignore for now)
 
 Verify file size:
 
@@ -1843,7 +1843,7 @@ git add app/pnpm-lock.yaml
 git diff --cached --quiet || git commit -m "chore: refresh pnpm-lock after tauri build"
 ```
 
-(`git diff --cached --quiet` succeeds with no staged changes — in which case the `||` short-circuits and we don't commit an empty change.)
+(`git diff --cached --quiet` succeeds with no staged changes - in which case the `||` short-circuits and we don't commit an empty change.)
 
 ---
 
@@ -1852,7 +1852,7 @@ git diff --cached --quiet || git commit -m "chore: refresh pnpm-lock after tauri
 **Files:**
 - Create: `tools/plan3-e2e-smoke.ps1`
 
-The acceptance test for Plan 3 done criterion #3: a tmp repo, conflict, install the merge driver, trigger the merge, click Take Theirs in the GUI, verify resolution. Because this involves a real GUI interaction, it can't be fully automated without a UI-automation library — so the script does everything *up to* the GUI prompt, then asks the human to click.
+The acceptance test for Plan 3 done criterion #3: a tmp repo, conflict, install the merge driver, trigger the merge, click Take Theirs in the GUI, verify resolution. Because this involves a real GUI interaction, it can't be fully automated without a UI-automation library - so the script does everything *up to* the GUI prompt, then asks the human to click.
 
 - [ ] **Step 1: Write the smoke script**
 
@@ -1864,7 +1864,7 @@ Create `tools/plan3-e2e-smoke.ps1`:
       1. Build unreal-merge in release mode.
       2. Create a tmp Git repo, induce a .uasset conflict.
       3. Install the merge driver.
-      4. Run `git merge` — the GUI opens.
+      4. Run `git merge` - the GUI opens.
       5. Wait for the human to click Take Theirs (or Abort).
       6. Verify the working tree contents reflect the resolution.
 
@@ -1960,7 +1960,7 @@ git commit -m "test(ui): Plan 3 end-to-end smoke (git merge → GUI → resoluti
 
 ---
 
-## Done criteria — verify before declaring Plan 3 complete
+## Done criteria - verify before declaring Plan 3 complete
 
 Run from the repo root:
 
@@ -1989,9 +1989,9 @@ All five must succeed (5 requires human button-click). Binary size > 5 MB.
 
 ## Out of scope for Plan 3 (do NOT attempt)
 
-- Blueprint graph rendering (React Flow nodes + wires) — Plan 4.
-- "Open in Unreal" action (spawn `UnrealEditor.exe -diff …`) — Plan 4.
-- Full standalone-mode UI (scan repo, list conflicts, click to enter diff) — Plan 4. The placeholder in ConflictList is intentional.
+- Blueprint graph rendering (React Flow nodes + wires) - Plan 4.
+- "Open in Unreal" action (spawn `UnrealEditor.exe -diff …`) - Plan 4.
+- Full standalone-mode UI (scan repo, list conflicts, click to enter diff) - Plan 4. The placeholder in ConflictList is intentional.
 - 3-way diff (Base / Ours / Theirs panes side by side). Plan 3 ships 2-way only; spec §5 keeps the 3-pane *visual* but Plan 1's commandlet doesn't produce a "base" snapshot in a useful way yet.
 - Per-property cherry-pick checkboxes.
 - Auto-launch of UE sidecar on first window open (eager warmup). Sidecar spawns per export request.

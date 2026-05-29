@@ -154,7 +154,7 @@ namespace
 }
 
 // Request fields:
-//   targetPath: string  — disk path of a .uasset that lives INSIDE the currently
+//   targetPath: string  - disk path of a .uasset that lives INSIDE the currently
 //                         open project's Content tree. We load it by its /Game
 //                         package name so its parent class and references fully
 //                         resolve and the saved asset keeps the correct internal

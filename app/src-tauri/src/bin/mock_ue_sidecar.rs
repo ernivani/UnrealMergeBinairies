@@ -2,7 +2,7 @@
 //!
 //! Speaks the same JSON-RPC framing (newline-delimited JSON over stdio), supports
 //! the same set of cmds (`ping`, `export`, `quit`), and emits a couple of fake log
-//! lines on stdout before its first response — so consumers' brace-counter
+//! lines on stdout before its first response - so consumers' brace-counter
 //! extractors are exercised against realistic noise.
 //!
 //! The canned export returns a BP_Base Blueprint with one EventGraph that
@@ -255,7 +255,7 @@ fn handle_merge(req: &serde_json::Value, id: Option<&serde_json::Value>) -> serd
         .unwrap_or_default();
 
     // Write the concatenation of all merged graph texts to a temp file.
-    // The mock doesn't produce a real .uasset — the consumer just copies
+    // The mock doesn't produce a real .uasset - the consumer just copies
     // the bytes over `dest`, which is fine for IPC exercise.
     let mut merged_text = String::new();
     for (name, value) in &merged_graphs {

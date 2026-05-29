@@ -1,13 +1,13 @@
 # Blueprint Graph View Design Spec
 
 **Date:** 2026-05-23
-**Feature:** Plan 4 — Blueprint graph view in the merge diff UI
+**Feature:** Plan 4 - Blueprint graph view in the merge diff UI
 
 ---
 
 ## Goal
 
-Add a Blueprint graph view to the existing Tauri diff window. When a `.uasset` is a Blueprint, the user sees the actual node graph (nodes, pins, wires) rendered side-by-side — Ours on the left, Theirs on the right — with changed/added/removed nodes highlighted. A tab switcher lets them toggle between Graph and Properties views.
+Add a Blueprint graph view to the existing Tauri diff window. When a `.uasset` is a Blueprint, the user sees the actual node graph (nodes, pins, wires) rendered side-by-side - Ours on the left, Theirs on the right - with changed/added/removed nodes highlighted. A tab switcher lets them toggle between Graph and Properties views.
 
 ---
 
@@ -15,11 +15,11 @@ Add a Blueprint graph view to the existing Tauri diff window. When a `.uasset` i
 
 The feature adds three layers on top of the existing Plan 1–3 stack:
 
-1. **C++ commandlet extension** — `BlueprintExporter.cpp` exports raw UE serialization text per graph using `FBlueprintEditorUtils::ExportNodesToText`. Same editor API UE uses for copy-paste. Returns one text blob per graph name.
+1. **C++ commandlet extension** - `BlueprintExporter.cpp` exports raw UE serialization text per graph using `FBlueprintEditorUtils::ExportNodesToText`. Same editor API UE uses for copy-paste. Returns one text blob per graph name.
 
-2. **Rust schema + diff** — `graph_texts: Option<HashMap<String, String>>` added to `Asset`. A new `diff_graphs` IPC command compares GUIDs across Ours/Theirs and returns diff status per node GUID (`added | removed | changed | unchanged`).
+2. **Rust schema + diff** - `graph_texts: Option<HashMap<String, String>>` added to `Asset`. A new `diff_graphs` IPC command compares GUIDs across Ours/Theirs and returns diff status per node GUID (`added | removed | changed | unchanged`).
 
-3. **Frontend rendering** — `ueblueprint` npm package (`npm i ueblueprint`) renders `<ueb-blueprint>` web components. Pixel-identical to UE's Blueprint editor. Diff overlay is injected into the rendered DOM post-render by matching node GUID attributes.
+3. **Frontend rendering** - `ueblueprint` npm package (`npm i ueblueprint`) renders `<ueb-blueprint>` web components. Pixel-identical to UE's Blueprint editor. Diff overlay is injected into the rendered DOM post-render by matching node GUID attributes.
 
 ---
 
@@ -131,11 +131,11 @@ import 'ueblueprint/dist/css/ueb-style.min.css'
 ### New files
 
 ```
-app/src/views/GraphView.tsx         — tab switcher + two GraphPane side by side
-app/src/views/GraphPane.tsx         — single <ueb-blueprint> wrapper + diff overlay
-app/src/graphDiff.ts                — applies diff CSS classes to rendered DOM nodes
-app/src/types.ts                    — add GraphDiff, NodeStatus
-app/src/ipc.ts                      — add diffGraphs()
+app/src/views/GraphView.tsx         - tab switcher + two GraphPane side by side
+app/src/views/GraphPane.tsx         - single <ueb-blueprint> wrapper + diff overlay
+app/src/graphDiff.ts                - applies diff CSS classes to rendered DOM nodes
+app/src/types.ts                    - add GraphDiff, NodeStatus
+app/src/ipc.ts                      - add diffGraphs()
 ```
 
 ### `GraphView.tsx`
@@ -159,8 +159,8 @@ app/src/ipc.ts                      — add diffGraphs()
 // After mount, calls applyDiffOverlay(containerRef, diffs, side).
 //
 // Props:
-//   graphText: string           — raw UE Begin Object text
-//   diffs: GraphDiff            — node GUID → NodeStatus
+//   graphText: string           - raw UE Begin Object text
+//   diffs: GraphDiff            - node GUID → NodeStatus
 //   side: "ours" | "theirs"
 //   label: string
 
@@ -183,9 +183,9 @@ function GraphPane({ graphText, diffs, side, label }) {
 }
 ```
 
-### `graphDiff.ts` — DOM overlay
+### `graphDiff.ts` - DOM overlay
 
-`ueblueprint` renders each node as a DOM element with a `data-node-guid` attribute (or similar — confirmed by inspecting the library's output). After render, query those elements and apply diff border classes:
+`ueblueprint` renders each node as a DOM element with a `data-node-guid` attribute (or similar - confirmed by inspecting the library's output). After render, query those elements and apply diff border classes:
 
 ```ts
 export function applyDiffOverlay(
@@ -277,11 +277,11 @@ Extend `tools/golden-test.ps1` to capture `graphs` field from `BP_MinimalChar.ua
 
 | File | Change |
 |---|---|
-| `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.cpp` | **New** — graph export |
+| `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.cpp` | **New** - graph export |
 | `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/BlueprintExporter.h` | **New** |
-| `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp` | Modify — call BlueprintExporter when class is Blueprint |
+| `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp` | Modify - call BlueprintExporter when class is Blueprint |
 | `app/src-tauri/src/schema.rs` | Add `graphs` field to `Asset` |
-| `app/src-tauri/src/graph_diff.rs` | **New** — `GraphDiff`, `NodeStatus`, `diff_graphs_inner` |
+| `app/src-tauri/src/graph_diff.rs` | **New** - `GraphDiff`, `NodeStatus`, `diff_graphs_inner` |
 | `app/src-tauri/src/ipc.rs` | Add `diff_graphs` command |
 | `app/src-tauri/src/lib.rs` | Declare `graph_diff` module |
 | `app/src-tauri/src/main.rs` | Register `diff_graphs` in `generate_handler!` |

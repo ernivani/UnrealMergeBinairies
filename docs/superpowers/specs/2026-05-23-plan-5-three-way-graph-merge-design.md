@@ -1,4 +1,4 @@
-# Plan 5 — Three-Way Graph Merge ("Take Both") Design
+# Plan 5 - Three-Way Graph Merge ("Take Both") Design
 
 **Date:** 2026-05-23
 **Status:** Draft, ready for implementation
@@ -55,7 +55,7 @@ pub enum ThreeWayNodeStatus {
     ModifiedInBoth,        // CONFLICT
     AddedInOurs,
     AddedInTheirs,
-    AddedInBoth,           // auto if identical, else conflict — see below
+    AddedInBoth,           // auto if identical, else conflict - see below
     AddedInBothConflict,   // CONFLICT
     RemovedInOurs,
     RemovedInTheirs,
@@ -64,7 +64,7 @@ pub enum ThreeWayNodeStatus {
 }
 ```
 
-Wire format (lowercase): `"unchanged"`, `"modifiedInOurs"`, ... (Rust `rename_all = "camelCase"` for variants, plus `lowercase` doesn't fit multi-word; we use `camelCase` — and update [[mock_ue_sidecar]] accordingly.)
+Wire format (lowercase): `"unchanged"`, `"modifiedInOurs"`, ... (Rust `rename_all = "camelCase"` for variants, plus `lowercase` doesn't fit multi-word; we use `camelCase` - and update [[mock_ue_sidecar]] accordingly.)
 
 > **Decision:** use `#[serde(rename_all = "camelCase")]` on this enum (overriding the existing `lowercase` style on `NodeStatus`). TS mirror is the literal string union.
 
@@ -93,7 +93,7 @@ interface GraphMergeSelection {
 
 ## Backend Changes
 
-### `graph_diff.rs` — extend with three-way
+### `graph_diff.rs` - extend with three-way
 
 Add `diff_graphs_three_way_inner(ancestor, ours, theirs) -> Vec<ThreeWayGraphDiff>`. Algorithm per GUID across the union of all three node sets:
 
@@ -102,21 +102,21 @@ Add `diff_graphs_three_way_inner(ancestor, ours, theirs) -> Vec<ThreeWayGraphDif
 | ✓     | ✓ same | ✓ same | unchanged |
 | ✓ A   | ✓ A    | ✓ B    | modifiedInTheirs |
 | ✓ A   | ✓ B    | ✓ A    | modifiedInOurs |
-| ✓ A   | ✓ B    | ✓ B    | modifiedInOurs (both became B; treat as same change — pick either) |
+| ✓ A   | ✓ B    | ✓ B    | modifiedInOurs (both became B; treat as same change - pick either) |
 | ✓ A   | ✓ B    | ✓ C    | modifiedInBoth (CONFLICT) |
-| ✓     | ✓      | —      | removedInTheirs |
-| ✓     | —      | ✓      | removedInOurs |
-| ✓     | —      | —      | removedInBoth |
-| ✓ A   | ✓ B    | —      | modifyDeleteConflict |
-| ✓ A   | —      | ✓ B    | modifyDeleteConflict |
-| —     | ✓      | —      | addedInOurs |
-| —     | —      | ✓      | addedInTheirs |
-| —     | ✓ same | ✓ same | addedInBoth (auto) |
-| —     | ✓ A    | ✓ B    | addedInBothConflict |
+| ✓     | ✓      | -      | removedInTheirs |
+| ✓     | -      | ✓      | removedInOurs |
+| ✓     | -      | -      | removedInBoth |
+| ✓ A   | ✓ B    | -      | modifyDeleteConflict |
+| ✓ A   | -      | ✓ B    | modifyDeleteConflict |
+| -     | ✓      | -      | addedInOurs |
+| -     | -      | ✓      | addedInTheirs |
+| -     | ✓ same | ✓ same | addedInBoth (auto) |
+| -     | ✓ A    | ✓ B    | addedInBothConflict |
 
-If `ancestor` graph text is missing for a given graph name (rare — e.g., graph created on both sides), treat it as `""` for that graph. `only_in_ancestor` mirrors `only_in_ours`/`only_in_theirs` semantics for the graph-level fields.
+If `ancestor` graph text is missing for a given graph name (rare - e.g., graph created on both sides), treat it as `""` for that graph. `only_in_ancestor` mirrors `only_in_ours`/`only_in_theirs` semantics for the graph-level fields.
 
-### `ipc.rs` — two new commands
+### `ipc.rs` - two new commands
 
 ```rust
 #[tauri::command]
@@ -139,15 +139,15 @@ pub fn apply_graph_merge(
 ```
 
 `apply_graph_merge` flow:
-1. Send a single `merge` JSON-RPC request to the commandlet with `{path: ancestor_path, mergedGraphs}`. The commandlet returns `{ok, mergedPath}` — the path to the rewritten asset.
+1. Send a single `merge` JSON-RPC request to the commandlet with `{path: ancestor_path, mergedGraphs}`. The commandlet returns `{ok, mergedPath}` - the path to the rewritten asset.
 2. Copy `mergedPath` → `dest_path` (reusing the read-only-bit handling already in `merge::apply_resolution`).
 3. Best-effort delete `mergedPath` (it's a temp file).
 
 If the commandlet returns `ok: false`, propagate the error string to the frontend.
 
-### `merge.rs` — helper for the temp-file copy
+### `merge.rs` - helper for the temp-file copy
 
-Add `apply_merged_file(merged_path: &Path, dest: &Path) -> Result<()>` that does the read-only-bit dance currently inlined in `apply_resolution`. Refactor `apply_resolution` to use it. (Small bonus refactor — file is small and this removes dup.)
+Add `apply_merged_file(merged_path: &Path, dest: &Path) -> Result<()>` that does the read-only-bit dance currently inlined in `apply_resolution`. Refactor `apply_resolution` to use it. (Small bonus refactor - file is small and this removes dup.)
 
 ## UE Commandlet Changes
 
@@ -172,18 +172,18 @@ Implementation (`StdioSession.cpp` dispatch + new `MergeApplier.{h,cpp}` in the 
    - Find the matching `UEdGraph*` on the duplicate by name (UbergraphPages + FunctionGraphs + MacroGraphs).
    - **Remove all existing nodes** from the graph (`Graph->Nodes.Empty()` after `Modify`).
    - Call `FEdGraphUtilities::ImportNodesFromText(Graph, MergedText, ImportedNodes)`. Add returned nodes to `Graph->Nodes`. Call `NotifyGraphChanged`.
-4. Call `FKismetEditorUtilities::CompileBlueprint(Blueprint, ...)` with `EBlueprintCompileOptions::SkipGarbageCollection` — best-effort; log on failure but proceed.
+4. Call `FKismetEditorUtilities::CompileBlueprint(Blueprint, ...)` with `EBlueprintCompileOptions::SkipGarbageCollection` - best-effort; log on failure but proceed.
 5. `UPackage::SavePackage(Package, Blueprint, RF_Public | RF_Standalone, *TempPath, GError, nullptr, true, true, SAVE_NoError)`.
 6. Return `{ok: true, mergedPath: TempPath}` (or `{ok: false, error: ...}` on any failure).
 
 > **Note:** Graphs not present in `mergedGraphs` are left as-is on the ancestor duplicate. This means callers MUST send every graph they want in the output (the frontend sends all graphs).
 
-### Mock sidecar — new `merge` cmd
+### Mock sidecar - new `merge` cmd
 
 For dev-mode parity, `mock_ue_sidecar` adds:
 - An `ancestor` fixture: a *third* hand-written EventGraph that represents BP_Base before either branch changed it. Concretely: ours = ancestor + a False-branch PrintString; theirs = ancestor + a MaxHealth getter feeding SET Health. So **ancestor = the common subset of ours and theirs** (BeginPlay → SET Health → Branch → True PrintString, with Knot from Get Health). This makes the mock realistic: each side has one isolated change, no conflict.
 - `export` returns the ancestor graph when `path.contains("ancestor")` (we'll extend the existing `is_theirs` check).
-- New `merge` cmd handler: writes the concatenation of all `mergedGraphs` values to a temp file, returns the path. (The "asset" the mock writes isn't a real .uasset — it's plain text. The frontend never re-parses it; it's just copied to dest. This is enough to exercise the IPC.)
+- New `merge` cmd handler: writes the concatenation of all `mergedGraphs` values to a temp file, returns the path. (The "asset" the mock writes isn't a real .uasset - it's plain text. The frontend never re-parses it; it's just copied to dest. This is enough to exercise the IPC.)
 
 ## Frontend Changes
 
@@ -242,8 +242,8 @@ export async function applyGraphMerge(
   - `modifiedInOurs` / `addedInOurs` / `removedInOurs` / `addedInBoth` → `"ours"`.
   - `modifiedInTheirs` / `addedInTheirs` / `removedInTheirs` → `"theirs"`.
   - Any conflict → `"ours"` (default).
-- Each conflicting status renders a small floating overlay over the node with three buttons: **O / T / —** (the `—` = skip). State is set per (graph, guid).
-- Non-conflicting non-unchanged statuses get a small **badge** (no buttons) — informational only.
+- Each conflicting status renders a small floating overlay over the node with three buttons: **O / T / -** (the `-` = skip). State is set per (graph, guid).
+- Non-conflicting non-unchanged statuses get a small **badge** (no buttons) - informational only.
 - The existing two-way diff overlay (red/green/amber outlines) is replaced by a 3-way overlay function (`applyThreeWayOverlay`). Color choices:
   - `addedIn*` → green outline
   - `removedIn*` → red outline
@@ -258,10 +258,10 @@ Pure function taking `(threeWayDiffs, ancestor, ours, theirs, selections)` and r
 1. Start with an empty list of node blobs.
 2. For each GUID with status `unchanged`: append the ancestor's blob.
 3. For each non-`skip` selection: append the blob from the chosen side (`ours.graphs[name]` parsed, or `theirs.graphs[name]` parsed). For `addedInBoth` (auto), append from `ours`.
-4. Re-parse using the same `parse_node_blobs` style logic in TS — OR more simply, do this on the Rust side. **Decision: do it in TS** to keep the API surface narrow. Use a tiny TS port of `parse_node_blobs` (already a 25-line function). Live in `app/src/graphTextParse.ts` with unit tests (vitest).
+4. Re-parse using the same `parse_node_blobs` style logic in TS - OR more simply, do this on the Rust side. **Decision: do it in TS** to keep the API surface narrow. Use a tiny TS port of `parse_node_blobs` (already a 25-line function). Live in `app/src/graphTextParse.ts` with unit tests (vitest).
 5. Join blobs with `\n` between them. (UE's `ImportNodesFromText` is whitespace-tolerant.)
 
-The Rust side never sees this logic — it just passes the merged text through to the commandlet.
+The Rust side never sees this logic - it just passes the merged text through to the commandlet.
 
 ### Auto-merge of all-non-conflict case
 
@@ -269,7 +269,7 @@ If `threeWayDiffs` has zero conflicts, **Take Both** is still useful (it merges 
 
 ### `Resolve.tsx`
 
-Add `onTakeBoth?: () => void` prop (optional — only rendered when in 3-way mode). New button between `Take Theirs` and the spacer.
+Add `onTakeBoth?: () => void` prop (optional - only rendered when in 3-way mode). New button between `Take Theirs` and the spacer.
 
 ### `BlueprintTest.tsx` (dev fixture)
 
@@ -285,7 +285,7 @@ Add a third hardcoded graph string (`EVENT_GRAPH_ANCESTOR`, matching mock sideca
 **Rust IPC tests** (`app/src-tauri/src/ipc.rs`):
 - `diff_graphs_three_way_inner` smoke test on a 3-snapshot fixture.
 
-**TS unit tests** (vitest already configured? — check; if not, add it):
+**TS unit tests** (vitest already configured? - check; if not, add it):
 - `graphTextParse.parseNodeBlobs` round-trips the BP_Base fixture.
 - `buildMergedGraphs` produces the expected merged text for: all-auto, one-conflict-pick-ours, one-conflict-pick-skip.
 
@@ -295,26 +295,26 @@ Add a third hardcoded graph string (`EVENT_GRAPH_ANCESTOR`, matching mock sideca
 
 ## Risks / open issues
 
-1. **Wire integrity:** A `LinkedTo=(K2Node_X PinId)` reference may point to a node the user skipped. UE's `ImportNodesFromText` is lenient — unresolved refs become null. Acceptable for v1; surface a warning if any pin's referenced node-GUID is missing from the final set.
-2. **Pin ID stability across versions:** Pin IDs are stable per session (set at node creation), so OursA and TheirsA share PinIds if they branched from a common ancestor. But if a node was *re-created* on one side (same GUID? — unlikely; that would change GUID), pin IDs diverge. Out of scope for v1.
+1. **Wire integrity:** A `LinkedTo=(K2Node_X PinId)` reference may point to a node the user skipped. UE's `ImportNodesFromText` is lenient - unresolved refs become null. Acceptable for v1; surface a warning if any pin's referenced node-GUID is missing from the final set.
+2. **Pin ID stability across versions:** Pin IDs are stable per session (set at node creation), so OursA and TheirsA share PinIds if they branched from a common ancestor. But if a node was *re-created* on one side (same GUID? - unlikely; that would change GUID), pin IDs diverge. Out of scope for v1.
 3. **`SavePackage` in `-run=` commandlet:** Requires `-AllowCommandletRendering` flag is NOT needed for pure data save, but `RF_Standalone` mark on the BP must survive. If save fails in practice, the commandlet returns ok:false with the GError contents.
 4. **Mock sidecar fidelity:** The mock writes plain text, not a real `.uasset`. That's fine for IPC + frontend exercise but means the full round-trip (Take Both → restart UE → see merged Blueprint) only works with a real UE sidecar.
 
-## File map (preview — full list in implementation plan)
+## File map (preview - full list in implementation plan)
 
 **New files:**
-- `app/src-tauri/src/graph_diff.rs` — gets new `ThreeWayNodeStatus`, `ThreeWayGraphDiff`, `diff_graphs_three_way_inner` + tests
-- `app/src/mergeGraphs.ts` — `buildMergedGraphs` + tiny `parseNodeBlobs` TS port
-- `app/src/graphTextParse.ts` (or in `mergeGraphs.ts` — TBD)
-- `app/src/views/GraphMergeOverlay.tsx` — small per-node picker overlay component (optional split)
-- `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeApplier.{h,cpp}` — new
-- `app/src-tauri/tests/three_way_merge_e2e_test.rs` — e2e mock-backed test
+- `app/src-tauri/src/graph_diff.rs` - gets new `ThreeWayNodeStatus`, `ThreeWayGraphDiff`, `diff_graphs_three_way_inner` + tests
+- `app/src/mergeGraphs.ts` - `buildMergedGraphs` + tiny `parseNodeBlobs` TS port
+- `app/src/graphTextParse.ts` (or in `mergeGraphs.ts` - TBD)
+- `app/src/views/GraphMergeOverlay.tsx` - small per-node picker overlay component (optional split)
+- `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeApplier.{h,cpp}` - new
+- `app/src-tauri/tests/three_way_merge_e2e_test.rs` - e2e mock-backed test
 
 **Modified:**
 - `app/src-tauri/src/ipc.rs`, `lib.rs`, `main.rs`, `merge.rs`
-- `app/src-tauri/src/bin/mock_ue_sidecar.rs` — ancestor fixture + `merge` cmd
+- `app/src-tauri/src/bin/mock_ue_sidecar.rs` - ancestor fixture + `merge` cmd
 - `app/src/types.ts`, `ipc.ts`
 - `app/src/views/Diff.tsx`, `GraphView.tsx`, `Resolve.tsx`, `BlueprintTest.tsx`, `App.tsx` (pass ancestorPath)
 - `app/src/views/GraphView.module.css`, `Resolve.module.css` (overlay picker + button styles)
-- `app/src/graphDiff.ts` — add `applyThreeWayOverlay`
-- `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/StdioSession.cpp` — dispatch `merge`
+- `app/src/graphDiff.ts` - add `applyThreeWayOverlay`
+- `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/StdioSession.cpp` - dispatch `merge`

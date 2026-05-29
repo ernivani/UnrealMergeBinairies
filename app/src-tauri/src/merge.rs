@@ -34,7 +34,7 @@ pub fn apply_resolution(res: Resolution, ours: &Path, theirs: &Path, dest: &Path
 }
 
 /// Copy `source` over `dest`, preserving the read-only bit if `dest` had it
-/// set (e.g. for LFS-locked files — spec §8 case 8a).
+/// set (e.g. for LFS-locked files - spec §8 case 8a).
 pub fn apply_merged_file(source: &Path, dest: &Path) -> Result<()> {
     let dest_meta = std::fs::metadata(dest).ok();
     let was_readonly = dest_meta

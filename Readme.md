@@ -1,11 +1,11 @@
 # Unreal Merge Binaries
 
-A Git merge driver for Unreal Engine `.uasset` / `.umap` binary files. When `git merge` produces a Blueprint conflict, this tool auto-launches a GUI that diffs both sides (properties + node graphs) and lets you pick a resolution — including **Take Both** (VS Code-style "accept current AND incoming") for non-conflicting graph-node changes.
+A Git merge driver for Unreal Engine `.uasset` / `.umap` binary files. When `git merge` produces a Blueprint conflict, this tool auto-launches a GUI that diffs both sides (properties + node graphs) and lets you pick a resolution - including **Take Both** (VS Code-style "accept current AND incoming") for non-conflicting graph-node changes.
 
 ## Goals
 
 - [x] Resolve `.uasset` Blueprint conflicts visually (Take Ours / Take Theirs)
-- [x] **Take Both** — three-way merge of node graphs with per-node conflict picker
+- [x] **Take Both** - three-way merge of node graphs with per-node conflict picker
 - [ ] Same workflow for non-Blueprint `.uasset` types (currently property-diff only, no semantic merge)
 
 ## How it works
@@ -47,7 +47,7 @@ parent classes / referenced assets resolve correctly.
 
 > **Path gotcha:** Git invokes the merge driver via `sh -c`, which splits on
 > spaces. Put `unreal-merge.exe` somewhere **without spaces** (e.g. `C:\tools\`)
-> — a path under `…\Unreal Projects\…` will fail with "No such file or directory".
+> - a path under `…\Unreal Projects\…` will fail with "No such file or directory".
 
 ## First-time setup in a new repo
 
@@ -67,8 +67,8 @@ cd path\to\YourGameRepo
 
 The `install` step is **idempotent** and modifies two files in your game repo:
 
-- `.gitattributes` — adds `*.uasset merge=unrealbin` and `*.umap merge=unrealbin` between marker lines
-- `.git/config` — adds a `[merge "unrealbin"]` section pointing at the absolute path of `unreal-merge.exe`
+- `.gitattributes` - adds `*.uasset merge=unrealbin` and `*.umap merge=unrealbin` between marker lines
+- `.git/config` - adds a `[merge "unrealbin"]` section pointing at the absolute path of `unreal-merge.exe`
 
 Commit the `.gitattributes` change so the whole team uses the driver. Each teammate still needs the exe on disk and must run `install` once locally (because `.git/config` is per-clone and stores an absolute path).
 
@@ -86,7 +86,7 @@ Inside the GUI:
 |---|---|
 | **Take Ours** | Keep `%A` (current branch). Git marks resolved, exits 0. |
 | **Take Theirs** | Keep `%B` (incoming). Git marks resolved, exits 0. |
-| **Take Both** | Blueprint-only. Three-way merge of node graphs — non-conflicting changes from both sides auto-accepted; per-node Ours / Theirs / Skip picker for conflicts. Calls back into UE to rewrite the `.uasset`, then git marks resolved. |
+| **Take Both** | Blueprint-only. Three-way merge of node graphs - non-conflicting changes from both sides auto-accepted; per-node Ours / Theirs / Skip picker for conflicts. Calls back into UE to rewrite the `.uasset`, then git marks resolved. |
 | **Abort** | Leave the conflict in place, exit non-zero. Git keeps the working tree at the conflict state. |
 
 The window has two tabs for Blueprints: **Graph** (rendered node graph with diff outlines) and **Properties** (side-by-side property table).
@@ -97,7 +97,7 @@ The Rust side spawns a UE 5.6 commandlet (`MergeBinariesExport`) over JSON-RPC t
 
 - **Default (release builds)**: `C:\Program Files\Epic Games\UE_5.6\Engine\Binaries\Win64\UnrealEditor.exe`
 - **Override**: set `UNREAL_MERGE_SIDECAR=C:\path\to\UnrealEditor.exe` before launching
-- **Debug builds** auto-detect `mock_ue_sidecar.exe` next to `unreal-merge.exe` (canned BP_Base fixtures — UI exercise only, no real `.uasset` export)
+- **Debug builds** auto-detect `mock_ue_sidecar.exe` next to `unreal-merge.exe` (canned BP_Base fixtures - UI exercise only, no real `.uasset` export)
 
 The host UE project containing the `MergeBinariesExport` plugin is at `ue-host/HostProject.uproject` in this repo.
 
@@ -136,16 +136,16 @@ unreal-merge.exe merge TARGET --graphs G.json --out OUT.uasset   # apply a graph
 the real asset inside the project, `--graphs` is a JSON map of `{graphName:
 nodeText}`, and the merged Blueprint is written to `--out`. Used to test the
 writeback without the GUI (round-trip: `export` a Blueprint's graphs, feed them
-to `merge`, re-`export` the result — node graphs reproduce identically).
+to `merge`, re-`export` the result - node graphs reproduce identically).
 
-Standalone GUI mode (`unreal-merge.exe` with no args) is a placeholder — the scan-the-repo workflow is deferred. For real conflicts use the git-driver flow above.
+Standalone GUI mode (`unreal-merge.exe` with no args) is a placeholder - the scan-the-repo workflow is deferred. For real conflicts use the git-driver flow above.
 
 ## Development
 
 ```powershell
 # Browser-only dev (no Rust rebuild, mocked data):
 cd app && pnpm dev
-# → http://127.0.0.1:1420 — renders BP_Base 3-way fixture
+# → http://127.0.0.1:1420 - renders BP_Base 3-way fixture
 
 # Full Tauri app, mock sidecar:
 cd app

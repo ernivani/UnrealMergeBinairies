@@ -22,7 +22,7 @@ namespace
     // Display-name reported in the JSON `package.name` field. When we have a real
     // /Game/... long package name (asset lives inside an Unreal project's Content/),
     // we use that. When we synthesise a temporary mount root (asset is outside any
-    // project — our test fixtures), we report the stable form /MergeTmp/<basename>
+    // project - our test fixtures), we report the stable form /MergeTmp/<basename>
     // so the JSON is byte-identical across runs regardless of which numeric mount
     // counter UE happens to be at internally.
     FString StableDisplayName(const FString& AbsoluteAssetPath, bool bUsedTempMount, const FString& RealPackageName)
@@ -103,7 +103,7 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
             FString::Printf(TEXT("LoadPackage failed for %s"), *PackageName));
         return;
     }
-    // Ensure the package is fully loaded — under -nullrhi commandlets LoadPackage can
+    // Ensure the package is fully loaded - under -nullrhi commandlets LoadPackage can
     // return a partially-populated UPackage with no inner objects until FullyLoad runs.
     Package->FullyLoad();
 
@@ -148,7 +148,7 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
 
     Asset->SetArrayField(TEXT("properties"), Entries);
 
-    // Blueprint graph export — only for Blueprint assets.
+    // Blueprint graph export - only for Blueprint assets.
     if (UBlueprint* BP = Cast<UBlueprint>(Primary))
     {
         const TSharedRef<FJsonObject> GraphsObj = MakeShared<FJsonObject>();
@@ -156,7 +156,7 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
         {
             if (GraphsObj->HasField(GE.GraphName))
             {
-                UE_LOG(LogTemp, Warning, TEXT("BlueprintExporter: duplicate graph name '%s' — overwriting"), *GE.GraphName);
+                UE_LOG(LogTemp, Warning, TEXT("BlueprintExporter: duplicate graph name '%s' - overwriting"), *GE.GraphName);
             }
             GraphsObj->SetStringField(GE.GraphName, GE.GraphText);
         }
@@ -175,7 +175,7 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
     // Unmount the temporary root. The loaded UPackage stays valid until GC, and
     // each call's package lives under a distinct mount root so cleanup never
     // affects an earlier call's result. We deliberately do NOT call CollectGarbage
-    // here — repeated CollectGarbage in a warm commandlet is expensive and the
+    // here - repeated CollectGarbage in a warm commandlet is expensive and the
     // mount-counter strategy already prevents cache collisions.
     if (!MountRoot.IsEmpty()) { FPackageName::UnRegisterMountPoint(MountRoot, MountTargetDir); }
 }
@@ -223,7 +223,7 @@ TSharedPtr<FJsonObject> FAssetExporter::BuildPackageBlock(const FString& Absolut
 
 UObject* FAssetExporter::FindPrimaryAsset(UPackage* Package)
 {
-    // Prefer the object whose name matches the package shortname AND is RF_Standalone —
+    // Prefer the object whose name matches the package shortname AND is RF_Standalone -
     // that is what UE itself treats as the package's "primary asset".
     UObject* Found = nullptr;
     const FString ShortName = FPackageName::GetShortName(Package->GetName());

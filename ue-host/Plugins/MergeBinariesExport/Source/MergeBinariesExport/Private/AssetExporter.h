@@ -15,7 +15,7 @@ public:
 private:
     /**
      * Build the `package` block. `DisplayName` is the value to emit for `package.name`
-     * — either the package's real long name, or a stable synthesised form when we
+     * - either the package's real long name, or a stable synthesised form when we
      * loaded the asset through a temporary mount root (keeps goldens run-independent).
      * Returns nullptr on failure (and populates `OutError`).
      */

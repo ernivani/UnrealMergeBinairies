@@ -92,7 +92,7 @@ pub fn diff_graphs_three_way_inner(
             let t = thr_nodes.get(guid);
 
             let status = match (a, o, t) {
-                // present nowhere — unreachable but cheap to handle
+                // present nowhere - unreachable but cheap to handle
                 (None, None, None) => continue,
                 // only in ancestor
                 (Some(_), None, None) => ThreeWayNodeStatus::RemovedInBoth,
@@ -139,7 +139,7 @@ pub fn diff_graphs_three_way_inner(
                     } else if t_eq_a {
                         ThreeWayNodeStatus::ModifiedInOurs
                     } else if o_eq_t {
-                        // Both sides made the same modification — pick either side, no conflict.
+                        // Both sides made the same modification - pick either side, no conflict.
                         ThreeWayNodeStatus::ModifiedInOurs
                     } else {
                         ThreeWayNodeStatus::ModifiedInBoth
@@ -245,7 +245,7 @@ fn blob_eq(a: &str, b: &str) -> bool {
 // Uses depth-tracking to correctly handle nodes that contain nested Begin Object
 // / End Object sub-objects (e.g., pins, default sub-objects).
 // Only extracts NodeGuid from depth-1 (top-level node) properties.
-// Duplicate GUIDs overwrite silently — malformed assets may lose nodes from diff.
+// Duplicate GUIDs overwrite silently - malformed assets may lose nodes from diff.
 fn parse_node_blobs(text: &str) -> HashMap<String, String> {
     let mut result = HashMap::new();
     let mut in_node = false;
@@ -310,7 +310,7 @@ pub fn diff_graphs_inner(
 
         for (guid, ours_blob) in &ours_nodes {
             if let Some(theirs_blob) = theirs_nodes.get(guid) {
-                // Compare semantically — ignore cosmetic NodePos/whitespace so a
+                // Compare semantically - ignore cosmetic NodePos/whitespace so a
                 // node that only moved isn't reported as Changed.
                 if blob_eq(ours_blob, theirs_blob) {
                     node_statuses.insert(guid.clone(), NodeStatus::Unchanged);
@@ -362,7 +362,7 @@ Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
 End Object
 ";
 
-    // Same node moved only (NodePosX differs) — must compare equal to NODE_A.
+    // Same node moved only (NodePosX differs) - must compare equal to NODE_A.
     const NODE_A_MOVED: &str = "\
 Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
    NodeGuid=AAAAAAAA000000000000000000000001
@@ -396,7 +396,7 @@ End Object
     #[test]
     fn position_only_change_is_unchanged() {
         // A node that only moved (different NodePosX) must NOT be reported as
-        // changed — UE rewrites positions whenever either side edits the graph.
+        // changed - UE rewrites positions whenever either side edits the graph.
         let ours = make_graphs(&[("EventGraph", NODE_A)]);
         let theirs = make_graphs(&[("EventGraph", NODE_A_MOVED)]);
         let diffs = diff_graphs_inner(&ours, &theirs);

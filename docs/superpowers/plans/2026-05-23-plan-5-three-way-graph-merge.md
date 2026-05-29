@@ -1,8 +1,8 @@
-# Plan 5 — Three-Way Graph Merge ("Take Both") Implementation Plan
+# Plan 5 - Three-Way Graph Merge ("Take Both") Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a VS Code-style "Take Both" merge path for Blueprint `.uasset` files — non-conflicting graph-node changes from both sides are auto-accepted; conflicts get a per-node Ours / Theirs / Skip picker; the merged result is rewritten by a new UE commandlet `merge` op and written to the working tree.
+**Goal:** Add a VS Code-style "Take Both" merge path for Blueprint `.uasset` files - non-conflicting graph-node changes from both sides are auto-accepted; conflicts get a per-node Ours / Theirs / Skip picker; the merged result is rewritten by a new UE commandlet `merge` op and written to the working tree.
 
 **Architecture:** Rust adds a `diff_graphs_three_way` IPC that returns per-GUID `ThreeWayNodeStatus` across ancestor / ours / theirs. Frontend `GraphView` switches into 3-way mode when an `ancestorPath` is present, renders per-node overlay badges, lets the user resolve conflicts, then submits a `merged_graphs` map to a new `apply_graph_merge` IPC. That IPC sends a `merge` JSON-RPC to the commandlet which duplicates the ancestor `.uasset`, replaces nodes per graph via `FEdGraphUtilities::ImportNodesFromText`, calls `SavePackage`, returns a temp path, and the Rust side copies it to `dest`. The mock sidecar implements `merge` by writing a plain-text file so dev mode stays useful.
 
@@ -26,7 +26,7 @@
 | `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp` | Register `merge` handler |
 | `app/src/types.ts` | Add `ThreeWayNodeStatus`, `ThreeWayGraphDiff`, `MergeSide` |
 | `app/src/ipc.ts` | Add `diffGraphsThreeWay`, `applyGraphMerge` |
-| `app/src/mergeGraphs.ts` | **New** — `parseNodeBlobs` + `buildMergedGraphs` |
+| `app/src/mergeGraphs.ts` | **New** - `parseNodeBlobs` + `buildMergedGraphs` |
 | `app/src/graphDiff.ts` | Add `applyThreeWayOverlay` |
 | `app/src/styles.css` | Add `.uem-three-way-*` classes (conflict magenta, dim opacity) |
 | `app/src/views/GraphView.tsx` | 3-way mode: per-node selection state + picker overlay |
@@ -40,7 +40,7 @@
 
 ---
 
-### Task 1: Rust — ThreeWayNodeStatus + ThreeWayGraphDiff + tests
+### Task 1: Rust - ThreeWayNodeStatus + ThreeWayGraphDiff + tests
 
 **Files:**
 - Modify: `app/src-tauri/src/graph_diff.rs`
@@ -117,7 +117,7 @@ pub fn diff_graphs_three_way_inner(
             let t = thr_nodes.get(guid);
 
             let status = match (a, o, t) {
-                // present nowhere — unreachable but cheap to handle
+                // present nowhere - unreachable but cheap to handle
                 (None, None, None) => continue,
                 // only in ancestor
                 (Some(_), None, None) => ThreeWayNodeStatus::RemovedInBoth,
@@ -164,7 +164,7 @@ pub fn diff_graphs_three_way_inner(
                     } else if t_eq_a {
                         ThreeWayNodeStatus::ModifiedInOurs
                     } else if o_eq_t {
-                        // Both sides made the same modification — pick either side, no conflict.
+                        // Both sides made the same modification - pick either side, no conflict.
                         ThreeWayNodeStatus::ModifiedInOurs
                     } else {
                         ThreeWayNodeStatus::ModifiedInBoth
@@ -398,12 +398,12 @@ Expected: all `three_way_*` tests pass (14 new + 7 pre-existing graph_diff tests
 
 ```bash
 git add app/src-tauri/src/graph_diff.rs
-git commit -m "feat(rust): three-way graph diff — ThreeWayNodeStatus + truth-table tests"
+git commit -m "feat(rust): three-way graph diff - ThreeWayNodeStatus + truth-table tests"
 ```
 
 ---
 
-### Task 2: Rust — refactor `apply_resolution` to expose `apply_merged_file`
+### Task 2: Rust - refactor `apply_resolution` to expose `apply_merged_file`
 
 **Files:**
 - Modify: `app/src-tauri/src/merge.rs`
@@ -426,7 +426,7 @@ pub fn apply_resolution(res: Resolution, ours: &Path, theirs: &Path, dest: &Path
 }
 
 /// Copy `source` over `dest`, preserving the read-only bit if `dest` had it
-/// set (e.g. for LFS-locked files — spec §8 case 8a).
+/// set (e.g. for LFS-locked files - spec §8 case 8a).
 pub fn apply_merged_file(source: &Path, dest: &Path) -> Result<()> {
     let dest_meta = std::fs::metadata(dest).ok();
     let was_readonly = dest_meta
@@ -467,7 +467,7 @@ git commit -m "refactor(rust): extract apply_merged_file from apply_resolution"
 
 ---
 
-### Task 3: Rust — `diff_graphs_three_way` + `apply_graph_merge` IPC commands
+### Task 3: Rust - `diff_graphs_three_way` + `apply_graph_merge` IPC commands
 
 **Files:**
 - Modify: `app/src-tauri/src/ipc.rs`
@@ -607,7 +607,7 @@ pub fn apply_graph_merge(
 }
 ```
 
-Note: `default_sidecar` is already defined later in the file — no need to redeclare.
+Note: `default_sidecar` is already defined later in the file - no need to redeclare.
 
 - [ ] **Step 4: Run rust check**
 
@@ -615,7 +615,7 @@ From `app/src-tauri/`:
 ```
 cargo check
 ```
-Expected: no errors. (If `Sidecar`/`SidecarConfig`/`merge` are not yet imported at top, add their `use` lines — they should already be present per the existing code.)
+Expected: no errors. (If `Sidecar`/`SidecarConfig`/`merge` are not yet imported at top, add their `use` lines - they should already be present per the existing code.)
 
 - [ ] **Step 5: Commit**
 
@@ -626,7 +626,7 @@ git commit -m "feat(rust): diff_graphs_three_way + apply_graph_merge IPC command
 
 ---
 
-### Task 4: Rust — wire new commands into lib.rs and main.rs
+### Task 4: Rust - wire new commands into lib.rs and main.rs
 
 **Files:**
 - Modify: `app/src-tauri/src/lib.rs`
@@ -674,7 +674,7 @@ git commit -m "feat(rust): register three-way IPC commands in Tauri handler + re
 
 ---
 
-### Task 5: Mock sidecar — ancestor fixture + `merge` cmd
+### Task 5: Mock sidecar - ancestor fixture + `merge` cmd
 
 **Files:**
 - Modify: `app/src-tauri/src/bin/mock_ue_sidecar.rs`
@@ -801,7 +801,7 @@ fn handle_merge(req: &serde_json::Value, id: Option<&serde_json::Value>) -> serd
         .unwrap_or_default();
 
     // Write the concatenation of all merged graph texts to a temp file.
-    // The mock doesn't produce a real .uasset — the consumer just copies
+    // The mock doesn't produce a real .uasset - the consumer just copies
     // the bytes over `dest`, which is fine for IPC exercise.
     let mut merged_text = String::new();
     for (name, value) in &merged_graphs {
@@ -860,7 +860,7 @@ git commit -m "feat(mock-sidecar): add EVENT_GRAPH_ANCESTOR fixture + merge cmd"
 
 ---
 
-### Task 6: Rust — end-to-end test for `apply_graph_merge` against mock
+### Task 6: Rust - end-to-end test for `apply_graph_merge` against mock
 
 **Files:**
 - Create: `app/src-tauri/tests/three_way_merge_e2e_test.rs`
@@ -946,18 +946,18 @@ Expected: all tests pass (existing ~50 + 14 new graph_diff three-way + 1 e2e).
 
 ```bash
 git add app/src-tauri/tests/three_way_merge_e2e_test.rs
-git commit -m "test(rust): e2e — apply_graph_merge writes dest via mock sidecar"
+git commit -m "test(rust): e2e - apply_graph_merge writes dest via mock sidecar"
 ```
 
 ---
 
-### Task 7: UE C++ — `MergeApplier` header & implementation
+### Task 7: UE C++ - `MergeApplier` header & implementation
 
 **Files:**
 - Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeApplier.h`
 - Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeApplier.cpp`
 
-No unit test possible — requires live UE editor. Validation comes from manual end-to-end with a real UE sidecar.
+No unit test possible - requires live UE editor. Validation comes from manual end-to-end with a real UE sidecar.
 
 - [ ] **Step 1: Create MergeApplier.h**
 
@@ -1151,7 +1151,7 @@ void FMergeApplier::Apply(const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonOb
         }
     }
 
-    // Best-effort recompile — log on failure but continue.
+    // Best-effort recompile - log on failure but continue.
     FKismetEditorUtilities::CompileBlueprint(BP, EBlueprintCompileOptions::SkipGarbageCollection);
 
     // Save package.
@@ -1176,12 +1176,12 @@ void FMergeApplier::Apply(const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonOb
 
 ```bash
 git add "ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeApplier.h" "ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeApplier.cpp"
-git commit -m "feat(ue): MergeApplier — duplicate ancestor, replace nodes, save package"
+git commit -m "feat(ue): MergeApplier - duplicate ancestor, replace nodes, save package"
 ```
 
 ---
 
-### Task 8: UE C++ — register `merge` JSON-RPC handler in the commandlet
+### Task 8: UE C++ - register `merge` JSON-RPC handler in the commandlet
 
 **Files:**
 - Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
@@ -1211,7 +1211,7 @@ git commit -m "feat(ue): register 'merge' JSON-RPC handler in commandlet"
 
 ---
 
-### Task 9: Frontend — types, IPC wrappers, CSS
+### Task 9: Frontend - types, IPC wrappers, CSS
 
 **Files:**
 - Modify: `app/src/types.ts`
@@ -1223,7 +1223,7 @@ git commit -m "feat(ue): register 'merge' JSON-RPC handler in commandlet"
 Append to `app/src/types.ts`:
 
 ```ts
-// Rust: graph_diff::ThreeWayNodeStatus — serde(rename_all = "camelCase")
+// Rust: graph_diff::ThreeWayNodeStatus - serde(rename_all = "camelCase")
 export type ThreeWayNodeStatus =
   | "unchanged"
   | "modifiedInOurs" | "modifiedInTheirs" | "modifiedInBoth"
@@ -1231,7 +1231,7 @@ export type ThreeWayNodeStatus =
   | "removedInOurs" | "removedInTheirs" | "removedInBoth"
   | "modifyDeleteConflict";
 
-// Rust: graph_diff::ThreeWayGraphDiff — serde(rename_all = "camelCase")
+// Rust: graph_diff::ThreeWayGraphDiff - serde(rename_all = "camelCase")
 export interface ThreeWayGraphDiff {
   name: string;
   onlyInOurs: boolean;
@@ -1326,7 +1326,7 @@ git commit -m "feat(frontend): three-way types + IPC wrappers + overlay CSS"
 
 ---
 
-### Task 10: Frontend — `mergeGraphs.ts` (parse + build merged text)
+### Task 10: Frontend - `mergeGraphs.ts` (parse + build merged text)
 
 **Files:**
 - Create: `app/src/mergeGraphs.ts`
@@ -1392,12 +1392,12 @@ export function defaultSide(status: ThreeWayNodeStatus): MergeSide | null {
       return null;
     case "modifiedInOurs":
     case "addedInOurs":
-    case "removedInTheirs":  // "ours kept the node" — pick ours
+    case "removedInTheirs":  // "ours kept the node" - pick ours
     case "addedInBoth":
       return "ours";
     case "modifiedInTheirs":
     case "addedInTheirs":
-    case "removedInOurs":    // "theirs kept the node" — pick theirs
+    case "removedInOurs":    // "theirs kept the node" - pick theirs
       return "theirs";
     case "modifiedInBoth":
     case "addedInBothConflict":
@@ -1445,7 +1445,7 @@ export function buildMergedGraphs(
       if (!status) continue;
       const side = graphSelections.get(guid) ?? defaultSide(status);
       if (side === null) {
-        // Unchanged or removed-in-both — emit unchanged from ancestor or skip removed.
+        // Unchanged or removed-in-both - emit unchanged from ancestor or skip removed.
         if (status === "unchanged") {
           const blob = ancBlobs.get(guid);
           if (blob) chosen.push(blob);
@@ -1482,12 +1482,12 @@ Expected: no errors.
 
 ```bash
 git add app/src/mergeGraphs.ts
-git commit -m "feat(frontend): mergeGraphs — parseNodeBlobs, defaultSide, buildMergedGraphs"
+git commit -m "feat(frontend): mergeGraphs - parseNodeBlobs, defaultSide, buildMergedGraphs"
 ```
 
 ---
 
-### Task 11: Frontend — `applyThreeWayOverlay` in graphDiff.ts
+### Task 11: Frontend - `applyThreeWayOverlay` in graphDiff.ts
 
 **Files:**
 - Modify: `app/src/graphDiff.ts`
@@ -1558,12 +1558,12 @@ Expected: no errors.
 
 ```bash
 git add app/src/graphDiff.ts
-git commit -m "feat(frontend): applyThreeWayOverlay — color + dim per side"
+git commit -m "feat(frontend): applyThreeWayOverlay - color + dim per side"
 ```
 
 ---
 
-### Task 12: Frontend — GraphPane accepts optional `threeWayDiff` + selection prop
+### Task 12: Frontend - GraphPane accepts optional `threeWayDiff` + selection prop
 
 **Files:**
 - Modify: `app/src/views/GraphPane.tsx`
@@ -1663,7 +1663,7 @@ git commit -m "feat(frontend): GraphPane supports three-way overlay + selections
 
 ---
 
-### Task 13: Frontend — GraphView 3-way mode with conflict picker
+### Task 13: Frontend - GraphView 3-way mode with conflict picker
 
 **Files:**
 - Modify: `app/src/views/GraphView.tsx`
@@ -1741,7 +1741,7 @@ interface Props {
   ours: AssetSnapshot;
   theirs: AssetSnapshot;
   graphDiffs: GraphDiff[];
-  /** Optional ancestor — when present, GraphView enters three-way mode. */
+  /** Optional ancestor - when present, GraphView enters three-way mode. */
   ancestor?: AssetSnapshot;
   threeWayDiffs?: ThreeWayGraphDiff[];
   /** Per-graph per-GUID selection state, owned by Diff.tsx and passed through. */
@@ -1960,7 +1960,7 @@ function ConflictPickers({ diff, selections, onPick }: PickersProps) {
               onClick={() => onPick(guid, "skip")}
               title="Skip (omit this node from the merge)"
             >
-              —
+              -
             </button>
           </div>
         );
@@ -1970,7 +1970,7 @@ function ConflictPickers({ diff, selections, onPick }: PickersProps) {
 }
 ```
 
-Note: `needsChoice` is imported but unused — TypeScript will warn. Remove from the import line if so. Final import is:
+Note: `needsChoice` is imported but unused - TypeScript will warn. Remove from the import line if so. Final import is:
 ```ts
 import { defaultSide } from "../mergeGraphs";
 ```
@@ -1991,7 +1991,7 @@ git commit -m "feat(frontend): GraphView three-way mode with conflict picker ove
 
 ---
 
-### Task 14: Frontend — Resolve gains optional "Take Both" button
+### Task 14: Frontend - Resolve gains optional "Take Both" button
 
 **Files:**
 - Modify: `app/src/views/Resolve.tsx`
@@ -2073,12 +2073,12 @@ Expected: no errors.
 
 ```bash
 git add app/src/views/Resolve.tsx app/src/views/Resolve.module.css
-git commit -m "feat(frontend): Resolve — optional Take Both button"
+git commit -m "feat(frontend): Resolve - optional Take Both button"
 ```
 
 ---
 
-### Task 15: Frontend — Diff.tsx wires ancestor + Take Both
+### Task 15: Frontend - Diff.tsx wires ancestor + Take Both
 
 **Files:**
 - Modify: `app/src/views/Diff.tsx`
@@ -2225,7 +2225,7 @@ export default function Diff({ oursPath, theirsPath, destPath, ancestorPath }: P
       }
       if (kind === "both") {
         if (status.kind !== "ready" || !status.threeWayDiffs || !status.ancestor || !ancestorPath) {
-          throw new Error("Take Both is not available — missing ancestor or three-way diff");
+          throw new Error("Take Both is not available - missing ancestor or three-way diff");
         }
         const merged = buildMergedGraphs(
           status.threeWayDiffs,
@@ -2360,7 +2360,7 @@ git commit -m "feat(frontend): Diff wires ancestor + selections + Take Both"
 
 ---
 
-### Task 16: Frontend — App.tsx passes `ancestor` to Diff
+### Task 16: Frontend - App.tsx passes `ancestor` to Diff
 
 **Files:**
 - Modify: `app/src/App.tsx`
@@ -2398,7 +2398,7 @@ git commit -m "feat(frontend): pass ancestorPath from gitDriverGui to Diff"
 
 ---
 
-### Task 17: Frontend — BlueprintTest renders 3-way
+### Task 17: Frontend - BlueprintTest renders 3-way
 
 **Files:**
 - Modify: `app/src/views/BlueprintTest.tsx`
@@ -2519,7 +2519,7 @@ export default function BlueprintTest() {
           letterSpacing: "0.04em",
         }}
       >
-        BP_Base 3-way conflict — Alice (Ours) adds False-branch PrintString; Bob (Theirs) feeds SET Health from MaxHealth. No real conflict — Take Both auto-merges.
+        BP_Base 3-way conflict - Alice (Ours) adds False-branch PrintString; Bob (Theirs) feeds SET Health from MaxHealth. No real conflict - Take Both auto-merges.
       </div>
       <GraphView
         ours={OURS}
@@ -2588,7 +2588,7 @@ From `app/`:
 ```
 pnpm dev
 ```
-Visit `http://127.0.0.1:1420` — BlueprintTest renders the 3-way view (per Task 17 expectations). Kill the dev server.
+Visit `http://127.0.0.1:1420` - BlueprintTest renders the 3-way view (per Task 17 expectations). Kill the dev server.
 
 - [ ] **Step 4: Final commit (only if anything uncommitted)**
 

@@ -65,7 +65,7 @@ pub struct Property {
     pub value: PropertyValue,
 }
 
-/// Property values are dynamic — they can be a primitive (bool/number/string)
+/// Property values are dynamic - they can be a primitive (bool/number/string)
 /// or a typed-summary object for structs/arrays/maps/sets. We accept any JSON.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
@@ -78,7 +78,7 @@ pub enum PropertyValue {
 }
 
 /// Wire-format response when the commandlet reports an error (`ok:false`).
-/// We don't deserialise into AssetSnapshot in that case — call sites should
+/// We don't deserialise into AssetSnapshot in that case - call sites should
 /// branch on `ok` before treating a response as a snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorResponse {

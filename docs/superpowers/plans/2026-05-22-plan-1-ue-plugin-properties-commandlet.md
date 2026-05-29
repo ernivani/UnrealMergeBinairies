@@ -1,4 +1,4 @@
-# Plan 1 — UE Plugin: Properties-Only Export Commandlet
+# Plan 1 - UE Plugin: Properties-Only Export Commandlet
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -12,7 +12,7 @@
 - UE modules: `Core`, `CoreUObject`, `Engine`, `UnrealEd`, `Json`, `JsonUtilities`
 - Test harness: PowerShell + `jq` for JSON normalisation (Windows host)
 - Build: UE's UBT; plugin compiled into `ue-host/Binaries/Win64/UnrealEditor-MergeBinariesExport.dll`
-- Shell: Windows PowerShell 5.1 (system default on Windows) or PowerShell 7+ — all scripts are written to work on both
+- Shell: Windows PowerShell 5.1 (system default on Windows) or PowerShell 7+ - all scripts are written to work on both
 
 **Prerequisites the engineer must have installed:**
 - Unreal Engine 5.7 (via Epic Games Launcher; required because the BP_MinimalChar fixtures use a file format newer than 5.5)
@@ -20,13 +20,13 @@
 - Git for Windows
 - `jq` is OPTIONAL. The golden-test harness (Task 4) prefers `jq` for canonical JSON normalisation but ships an in-script PowerShell fallback that key-sorts JSON the same way. Install with `winget install jqlang.jq` if you want stricter parity.
 
-**`pwsh` vs. `powershell`:** all script invocations in this plan use `pwsh -File ...` for forward compatibility. If PowerShell 7 isn't installed (`pwsh` not on PATH), substitute `powershell -File ...` (Windows PowerShell 5.1, present on every Windows machine) — the scripts have been written to run on both. Adding PowerShell 7 is a one-liner if you'd rather have it: `winget install Microsoft.PowerShell`.
+**`pwsh` vs. `powershell`:** all script invocations in this plan use `pwsh -File ...` for forward compatibility. If PowerShell 7 isn't installed (`pwsh` not on PATH), substitute `powershell -File ...` (Windows PowerShell 5.1, present on every Windows machine) - the scripts have been written to run on both. Adding PowerShell 7 is a one-liner if you'd rather have it: `winget install Microsoft.PowerShell`.
 
-**UE writing back to `ue-host/Config/DefaultEngine.ini`:** Some default-enabled UE plugins (most notably `AndroidFileServerEditor`) inject their config block into this file on first project load. We disable those plugins in `HostProject.uproject` (`"Enabled": false`) to keep the file stable. If a new plugin appears that wasn't disabled and dirties the INI, add it to the `Plugins` array as `"Enabled": false` (do NOT just `git checkout --` the INI in a loop — track the root cause).
+**UE writing back to `ue-host/Config/DefaultEngine.ini`:** Some default-enabled UE plugins (most notably `AndroidFileServerEditor`) inject their config block into this file on first project load. We disable those plugins in `HostProject.uproject` (`"Enabled": false`) to keep the file stable. If a new plugin appears that wasn't disabled and dirties the INI, add it to the `Plugins` array as `"Enabled": false` (do NOT just `git checkout --` the INI in a loop - track the root cause).
 
-**Piping JSON to the commandlet — always use `-StdinText`:** PowerShell's default `$OutputEncoding` is ASCII on 5.1 and UTF-8 on 7+, and various shell wrappers / profiles change it to UTF-16, which mangles JSON-RPC frames into "invalid JSON on stdin" responses. `tools/run-commandlet.ps1` provides a `-StdinText` parameter that bypasses pipe encoding entirely — the script opens the child process via `System.Diagnostics.Process`, writes UTF-8 bytes (no BOM) directly to stdin, and redirects stdout/stderr so callers can pipe (`run-commandlet.ps1 -StdinText '...' | Where-Object ...`). **All callers that send JSON requests MUST use `-StdinText`, not raw pipe redirection.**
+**Piping JSON to the commandlet - always use `-StdinText`:** PowerShell's default `$OutputEncoding` is ASCII on 5.1 and UTF-8 on 7+, and various shell wrappers / profiles change it to UTF-16, which mangles JSON-RPC frames into "invalid JSON on stdin" responses. `tools/run-commandlet.ps1` provides a `-StdinText` parameter that bypasses pipe encoding entirely - the script opens the child process via `System.Diagnostics.Process`, writes UTF-8 bytes (no BOM) directly to stdin, and redirects stdout/stderr so callers can pipe (`run-commandlet.ps1 -StdinText '...' | Where-Object ...`). **All callers that send JSON requests MUST use `-StdinText`, not raw pipe redirection.**
 
-**Auto-prepended warmup ping:** UE's `-stdio` commandlet boot empirically swallows or corrupts the first stdin line during init. The launcher automatically prepends `{"id":0,"cmd":"_warmup"}` to every `-StdinText` payload — the loop replies `{"id":0,"ok":false,"error":"unknown cmd: _warmup"}` on stdout, which downstream filters that key on `id >= 1` (or schema-specific fields) ignore. Pass `-NoWarmup` if a caller genuinely needs to be the first frame UE sees.
+**Auto-prepended warmup ping:** UE's `-stdio` commandlet boot empirically swallows or corrupts the first stdin line during init. The launcher automatically prepends `{"id":0,"cmd":"_warmup"}` to every `-StdinText` payload - the loop replies `{"id":0,"ok":false,"error":"unknown cmd: _warmup"}` on stdout, which downstream filters that key on `id >= 1` (or schema-specific fields) ignore. Pass `-NoWarmup` if a caller genuinely needs to be the first frame UE sees.
 
 **Per-call mount roots in AssetExporter:** when the asset lives outside an Unreal project's `Content/` tree (our test fixtures), `FAssetExporter::Export` registers a synthetic mount root and unmounts it before returning. Each call uses a unique counter-suffixed root (`/MergeTmp1/`, `/MergeTmp2/`, …) so UE's package cache can't return a stale `UPackage` from a previous load when the same filename appears in two different fixture directories. The JSON's `package.name` is normalised back to the stable form `/MergeTmp/<basename>` for run-independent goldens.
 
@@ -72,12 +72,12 @@ Examples/
 ```
 
 Each file has one responsibility:
-- **`MergeBinariesExport.uplugin`** — plugin manifest. Editor-only.
-- **`MergeBinariesExport.Build.cs`** — module build rules. Lists UE module dependencies.
-- **`MergeBinariesExportModule.cpp`** — `IModuleInterface` skeleton; no logic.
-- **`MergeBinariesExportCommandlet.cpp`** — `UCommandlet::Main` entry; sets up `JsonRpcLoop` and dispatches to `AssetExporter`.
-- **`JsonRpcLoop.cpp`** — line-delimited JSON request/response loop on stdin/stdout. Knows nothing about asset semantics.
-- **`AssetExporter.cpp`** — loads a `.uasset` via `LoadPackage`; walks `FProperty` reflection; emits `TSharedPtr<FJsonObject>` matching the schema.
+- **`MergeBinariesExport.uplugin`** - plugin manifest. Editor-only.
+- **`MergeBinariesExport.Build.cs`** - module build rules. Lists UE module dependencies.
+- **`MergeBinariesExportModule.cpp`** - `IModuleInterface` skeleton; no logic.
+- **`MergeBinariesExportCommandlet.cpp`** - `UCommandlet::Main` entry; sets up `JsonRpcLoop` and dispatches to `AssetExporter`.
+- **`JsonRpcLoop.cpp`** - line-delimited JSON request/response loop on stdin/stdout. Knows nothing about asset semantics.
+- **`AssetExporter.cpp`** - loads a `.uasset` via `LoadPackage`; walks `FProperty` reflection; emits `TSharedPtr<FJsonObject>` matching the schema.
 
 ---
 
@@ -195,7 +195,7 @@ Create `ue-host/Plugins/MergeBinariesExport/MergeBinariesExport.uplugin`:
 }
 ```
 
-`LoadingPhase: "Default"` (NOT `PostEngineInit`): the engine dispatches the `-run=<commandlet>` argument BEFORE `PostEngineInit`, so a module loaded at that phase will not have registered its `UCommandlet` class yet — UE prints `Failed to find commandlet class MergeBinariesExportCommandlet` and exits. `Default` is the conventional phase for editor modules that contribute UClasses needed at commandlet dispatch.
+`LoadingPhase: "Default"` (NOT `PostEngineInit`): the engine dispatches the `-run=<commandlet>` argument BEFORE `PostEngineInit`, so a module loaded at that phase will not have registered its `UCommandlet` class yet - UE prints `Failed to find commandlet class MergeBinariesExportCommandlet` and exits. `Default` is the conventional phase for editor modules that contribute UClasses needed at commandlet dispatch.
 
 - [ ] **Step 2: Write the module build rules**
 
@@ -388,7 +388,7 @@ exit $LASTEXITCODE
 pwsh -File tools/run-commandlet.ps1
 ```
 
-Expected output: a burst of UE engine log lines (mostly on stderr), then the process exits 0. There will be **no** JSON output yet — that lands in Task 3.
+Expected output: a burst of UE engine log lines (mostly on stderr), then the process exits 0. There will be **no** JSON output yet - that lands in Task 3.
 
 - [ ] **Step 6: Commit**
 
@@ -595,13 +595,13 @@ Expected: exit code `0`; `UnrealEditor-MergeBinariesExport.dll` re-linked.
 
 - [ ] **Step 5: Smoke-test `ping` end-to-end**
 
-Use the launcher's `-StdinText` parameter — it writes UTF-8 bytes directly to UE's stdin, bypassing PowerShell pipe-encoding pitfalls.
+Use the launcher's `-StdinText` parameter - it writes UTF-8 bytes directly to UE's stdin, bypassing PowerShell pipe-encoding pitfalls.
 
 ```powershell
 powershell -File tools/run-commandlet.ps1 -StdinText '{"id":1,"cmd":"ping"}'
 ```
 
-Expected: among the engine log lines on stderr, exactly one line appears on stdout that parses as JSON and contains `{"id":1,"ok":true,"pong":"MergeBinariesExport"}`. The line may be preceded or followed by engine log lines — that is exactly the "stdout pollution" the spec calls out. Once UE finishes its boot the loop exits because stdin EOF arrives after the one request.
+Expected: among the engine log lines on stderr, exactly one line appears on stdout that parses as JSON and contains `{"id":1,"ok":true,"pong":"MergeBinariesExport"}`. The line may be preceded or followed by engine log lines - that is exactly the "stdout pollution" the spec calls out. Once UE finishes its boot the loop exits because stdin EOF arrives after the one request.
 
 To filter just for our line:
 
@@ -623,15 +623,15 @@ git commit -m "feat(ue-plugin): JSON-RPC stdio loop with ping handler"
 
 ---
 
-## Task 4: `export` command — package block only
+## Task 4: `export` command - package block only
 
 **Files:**
 - Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.h`
 - Create: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp`
 - Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/MergeBinariesExportCommandlet.cpp`
 - Create: `tools/golden-test.ps1`
-- Create: `Examples/v1.expected.json` (initial — package block only)
-- Create: `Examples/v2.expected.json` (initial — package block only)
+- Create: `Examples/v1.expected.json` (initial - package block only)
+- Create: `Examples/v2.expected.json` (initial - package block only)
 
 Smallest meaningful export: load the package, emit the `package` block. No properties yet. This validates `LoadPackage` works and lets us cement the golden-test loop before the more error-prone reflection code lands.
 
@@ -720,7 +720,7 @@ void FAssetExporter::Export(const FString& AbsoluteAssetPath, TSharedRef<FJsonOb
 
     const TSharedRef<FJsonObject> Asset = MakeShared<FJsonObject>();
     // `asset` block is filled by Task 5; for now leave a placeholder so consumers can detect the schema version.
-    Asset->SetStringField(TEXT("class"), TEXT("(unknown — pending Task 5)"));
+    Asset->SetStringField(TEXT("class"), TEXT("(unknown - pending Task 5)"));
 
     OutResponse->SetBoolField(TEXT("ok"), true);
     OutResponse->SetStringField(TEXT("path"), AbsoluteAssetPath);
@@ -759,11 +759,11 @@ TSharedPtr<FJsonObject> FAssetExporter::BuildPackageBlock(const FString& Absolut
 }
 ```
 
-Note: the `fileVersionUE5` lookup above is illustrative; the *exact* call to retrieve the UE5 file version evolves across UE point releases. If the engine API differs in your installed UE version, replace the right-hand side of `SetNumberField` with whatever yields the integer the engine actually serialised (matching the bytes at offset 0x10 of the .uasset header, which the schema-validation pass confirmed is `1017` for both fixtures). It MUST be a stable integer per file — golden tests will pin it.
+Note: the `fileVersionUE5` lookup above is illustrative; the *exact* call to retrieve the UE5 file version evolves across UE point releases. If the engine API differs in your installed UE version, replace the right-hand side of `SetNumberField` with whatever yields the integer the engine actually serialised (matching the bytes at offset 0x10 of the .uasset header, which the schema-validation pass confirmed is `1017` for both fixtures). It MUST be a stable integer per file - golden tests will pin it.
 
 - [ ] **Step 3: Wire `export` into the commandlet**
 
-Edit `MergeBinariesExportCommandlet.cpp` — add an `#include "AssetExporter.h"` and a new handler:
+Edit `MergeBinariesExportCommandlet.cpp` - add an `#include "AssetExporter.h"` and a new handler:
 
 ```cpp
     Handlers.Add(TEXT("export"), [](const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonObject>& OutResponse)
@@ -927,9 +927,9 @@ Open `Examples/v1.expected.json` and `Examples/v2.expected.json`. Confirm by eye
 - Both have `package.name` ending in `BP_MinimalChar`.
 - Both have `package.fileVersionUE5` = `1017` (this is what the spec's binary inspection produced).
 - `package.savedHash` values differ (the two fixtures differ by 547 bytes; their SHA-1s MUST be different).
-- `asset.class` is still the `(unknown — pending Task 5)` placeholder.
+- `asset.class` is still the `(unknown - pending Task 5)` placeholder.
 
-If `fileVersionUE5` shows something other than `1017`, the lookup in `BuildPackageBlock` is reading the wrong custom version GUID — fix it now before continuing (it is the one field downstream diff logic will key on for engine-version checks).
+If `fileVersionUE5` shows something other than `1017`, the lookup in `BuildPackageBlock` is reading the wrong custom version GUID - fix it now before continuing (it is the one field downstream diff logic will key on for engine-version checks).
 
 - [ ] **Step 9: Commit**
 
@@ -938,7 +938,7 @@ git add -f ue-host/Plugins/MergeBinariesExport tools/golden-test.ps1 Examples/v1
 git commit -m "feat(ue-plugin): export 'package' block + golden-test harness"
 ```
 
-(`-f` because `docs/` is gitignored, but `Examples/` and `tools/` are not — this command works without `-f`. Use plain `git add` if your shell flags the `-f`.)
+(`-f` because `docs/` is gitignored, but `Examples/` and `tools/` are not - this command works without `-f`. Use plain `git add` if your shell flags the `-f`.)
 
 ---
 
@@ -1170,12 +1170,12 @@ Expected second command: `PASS` on both files, exit 0.
 git diff --no-index Examples/v1.expected.json Examples/v2.expected.json | Select-Object -First 80
 ```
 
-Expected: a non-empty diff with several entries under `asset.properties` differing (the two fixtures differ by 547 bytes — at least a handful of property values should change). If `git diff` reports no semantic difference besides `package.savedHash`, the property walk is missing the fields that actually changed; investigate before continuing. Acceptable scenarios:
+Expected: a non-empty diff with several entries under `asset.properties` differing (the two fixtures differ by 547 bytes - at least a handful of property values should change). If `git diff` reports no semantic difference besides `package.savedHash`, the property walk is missing the fields that actually changed; investigate before continuing. Acceptable scenarios:
 - Component override property values differ.
 - Variable defaults differ.
 - Some BP-internal `bool`/string property differs.
 
-If the only diff between v1 and v2 is the SHA-1 hash, escalate — the walker is broken or the fixtures are bit-identical-but-padded (which would contradict §6 of the spec's binary inspection).
+If the only diff between v1 and v2 is the SHA-1 hash, escalate - the walker is broken or the fixtures are bit-identical-but-padded (which would contradict §6 of the spec's binary inspection).
 
 - [ ] **Step 9: Commit**
 
@@ -1186,7 +1186,7 @@ git commit -m "feat(ue-plugin): export asset.properties via FProperty reflection
 
 ---
 
-## Task 6: Error handling — non-existent path, non-asset file, corrupt asset
+## Task 6: Error handling - non-existent path, non-asset file, corrupt asset
 
 **Files:**
 - Modify: `ue-host/Plugins/MergeBinariesExport/Source/MergeBinariesExport/Private/AssetExporter.cpp` (only if a case below is found uncovered)
@@ -1297,7 +1297,7 @@ exit 0
 pwsh tools/audit-stdout.ps1
 ```
 
-Expected: `Our schema lines : 1`, exit 0. The `Non-JSON lines` count is informational — record it in the commit message so Plan 2's sidecar tuning has a baseline.
+Expected: `Our schema lines : 1`, exit 0. The `Non-JSON lines` count is informational - record it in the commit message so Plan 2's sidecar tuning has a baseline.
 
 If `Other JSON lines` is greater than zero, investigate which UE subsystem is emitting structured JSON to stdout and either suppress it (config in `DefaultEngine.ini`) or document it so Plan 2's reader filters on `id` presence (which it will anyway per the spec).
 
@@ -1315,7 +1315,7 @@ git commit -m "test(ue-plugin): audit stdout cleanliness (baseline noise count)"
 **Files:**
 - Create: `.github/workflows/ue-plugin-golden.yml`
 
-This task is only worth doing if the engineer is comfortable maintaining a self-hosted Windows runner with UE 5.4 installed — GitHub-hosted runners cannot install the full editor. If no runner is available, **skip this task** and run goldens locally before each merge instead.
+This task is only worth doing if the engineer is comfortable maintaining a self-hosted Windows runner with UE 5.4 installed - GitHub-hosted runners cannot install the full editor. If no runner is available, **skip this task** and run goldens locally before each merge instead.
 
 - [ ] **Step 1: Author the workflow (self-hosted runner)**
 
@@ -1380,9 +1380,9 @@ All three must exit 0. Additionally:
 1. `Examples/v1.expected.json` and `Examples/v2.expected.json` exist, are committed, and are not byte-identical (the `package.savedHash` plus at least one `asset.properties[*].value` must differ).
 2. Both expected files contain `"fileVersionUE5": 1017`.
 3. Both expected files contain `"class": "Blueprint"` (the `BP_MinimalChar` primary asset is a `UBlueprint`).
-4. The commandlet exits with status 0 after a `quit` command and with status 0 (never non-zero) on individual request failures — failures are reported in-band via `{"ok":false,"error":"..."}`.
+4. The commandlet exits with status 0 after a `quit` command and with status 0 (never non-zero) on individual request failures - failures are reported in-band via `{"ok":false,"error":"..."}`.
 
-If any of these fails, the foundation for Plan 2 is shaky — fix here before moving on.
+If any of these fails, the foundation for Plan 2 is shaky - fix here before moving on.
 
 ---
 

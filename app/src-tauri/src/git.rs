@@ -15,7 +15,7 @@ pub fn list_conflicts(repo: &Path) -> Result<Vec<String>> {
         bail!("git ls-files -u failed: {}", String::from_utf8_lossy(&out.stderr));
     }
     // Format: each entry is `<mode> <sha> <stage>\t<path>\0`. Same path appears
-    // at stages 1, 2, 3 — we dedupe.
+    // at stages 1, 2, 3 - we dedupe.
     let text = String::from_utf8_lossy(&out.stdout);
     let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     for entry in text.split('\0').filter(|e| !e.is_empty()) {

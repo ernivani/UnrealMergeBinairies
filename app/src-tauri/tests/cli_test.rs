@@ -26,5 +26,5 @@ fn export_against_nonexistent_file_exits_nonzero() {
             "C:/also/missing.uasset",
         ])
         .unwrap_err();
-    let _ = output; // assert_cmd's `.unwrap_err` means the command exited nonzero — that's enough.
+    let _ = output; // assert_cmd's `.unwrap_err` means the command exited nonzero - that's enough.
 }
