@@ -31,3 +31,7 @@ app/vite.config.d.ts
 app/pnpm-workspace.yaml
 app/src/*.js
 app/src/*.d.ts
+
+# Distributable build artifacts
+dist/UnrealMergeTool/
+dist/*.zip
