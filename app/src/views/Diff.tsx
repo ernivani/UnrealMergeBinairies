@@ -67,11 +67,12 @@ export default function Diff({ oursPath, theirsPath, destPath, ancestorPath, tar
     let cancelled = false;
     async function load() {
       try {
-        const [ours, theirs, ancestor] = await Promise.all([
-          exportAsset(oursPath),
-          exportAsset(theirsPath),
-          ancestorPath ? exportAsset(ancestorPath) : Promise.resolve(undefined),
-        ]);
+        // Export sequentially, not in parallel: each export spawns its own
+        // UnrealEditor on the same .uproject, and UE only allows one editor
+        // instance per project at a time — concurrent launches fail to load.
+        const ours = await exportAsset(oursPath);
+        const theirs = await exportAsset(theirsPath);
+        const ancestor = ancestorPath ? await exportAsset(ancestorPath) : undefined;
         const [changes, graphDiffs] = await Promise.all([
           diffSnapshots(ours, theirs),
           diffGraphs(ours, theirs),
