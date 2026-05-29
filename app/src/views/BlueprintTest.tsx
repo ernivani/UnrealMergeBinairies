@@ -14,7 +14,6 @@
  */
 import { useState } from "react";
 import type { AssetSnapshot, MergeSide, ThreeWayGraphDiff } from "../types";
-import { defaultSide } from "../mergeGraphs";
 import GraphView from "./GraphView";
 
 // Stable across both sides (used to compute diff status).
@@ -249,32 +248,14 @@ const THREE_WAY_DIFFS: ThreeWayGraphDiff[] = [
   },
 ];
 
-function seedSelections(diffs: ThreeWayGraphDiff[]): Map<string, Map<string, MergeSide>> {
-  const seed = new Map<string, Map<string, MergeSide>>();
-  for (const d of diffs) {
-    const m = new Map<string, MergeSide>();
-    for (const [guid, st] of Object.entries(d.nodeStatuses)) {
-      const def = defaultSide(st);
-      if (def !== null) m.set(guid, def);
-    }
-    seed.set(d.name, m);
-  }
-  return seed;
-}
-
 export default function BlueprintTest() {
-  const [selections, setSelections] = useState<Map<string, Map<string, MergeSide>>>(
-    () => seedSelections(THREE_WAY_DIFFS),
+  // Per-graph side selection (only "both"-edited graphs default to "ours").
+  const [selections, setSelections] = useState<Map<string, MergeSide>>(
+    () => new Map([["EventGraph", "ours" as MergeSide]]),
   );
 
-  function onSelectionChange(graphName: string, guid: string, side: MergeSide) {
-    setSelections((prev) => {
-      const next = new Map(prev);
-      const inner = new Map(next.get(graphName) ?? new Map<string, MergeSide>());
-      inner.set(guid, side);
-      next.set(graphName, inner);
-      return next;
-    });
+  function onSelectionChange(graphName: string, side: MergeSide) {
+    setSelections((prev) => new Map(prev).set(graphName, side));
   }
 
   return (

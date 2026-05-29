@@ -67,6 +67,66 @@ export function normalizeBlob(blob: string): string {
     .join("\n");
 }
 
+// --- Graph-level merge ----------------------------------------------------
+// Stitching node text across versions is unsafe (UE regenerates pin IDs, so a
+// merged graph has dangling links and crashes the importer). Instead we resolve
+// at GRAPH granularity: each graph is taken whole from one side (internally
+// consistent). Non-conflicting graphs auto-resolve; a graph both sides edited
+// is a single Ours/Theirs pick.
+
+export type GraphChange = "unchanged" | "oursOnly" | "theirsOnly" | "both";
+
+function nodeSet(text?: string): Set<string> {
+  const set = new Set<string>();
+  for (const [, blob] of parseNodeBlobs(text ?? "")) set.add(normalizeBlob(blob));
+  return set;
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
+}
+
+// Whether a graph changed on each side (by comparing the SET of normalized node
+// blobs against the ancestor — order-independent, cosmetic-noise-free).
+export function graphChange(anc?: string, ours?: string, theirs?: string): GraphChange {
+  const a = nodeSet(anc);
+  const oursChanged = !setsEqual(nodeSet(ours), a);
+  const theirsChanged = !setsEqual(nodeSet(theirs), a);
+  if (oursChanged && theirsChanged) return "both";
+  if (oursChanged) return "oursOnly";
+  if (theirsChanged) return "theirsOnly";
+  return "unchanged";
+}
+
+// The winning side for a graph. `graphSel` is only consulted for "both".
+export function graphWinner(change: GraphChange, sel: MergeSide | undefined): "ours" | "theirs" {
+  if (change === "theirsOnly") return "theirs";
+  if (change === "oursOnly" || change === "unchanged") return "ours";
+  return sel === "theirs" ? "theirs" : "ours"; // "both" → user pick, default ours
+}
+
+// Build the map of graphs the writeback must OVERWRITE. The base asset is ours
+// (the working-tree file), so we only emit graphs where THEIRS wins — each as
+// theirs' full, internally-consistent text. Ours-winning graphs are left as-is.
+export function buildMergedGraphsByGraph(
+  graphNames: string[],
+  ancestor: Record<string, string>,
+  ours: Record<string, string>,
+  theirs: Record<string, string>,
+  graphSel: Map<string, MergeSide>,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const g of graphNames) {
+    const change = graphChange(ancestor[g], ours[g], theirs[g]);
+    if (graphWinner(change, graphSel.get(g)) === "theirs" && theirs[g] != null) {
+      out[g] = theirs[g];
+    }
+  }
+  return out;
+}
+
 // GUIDs whose node is identical (semantically) in both ours and theirs — i.e.
 // "agreed / common" nodes. These are dimmed in the UI so real differences pop.
 export function commonGuids(oursText?: string, theirsText?: string): Set<string> {
