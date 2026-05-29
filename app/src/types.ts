@@ -17,7 +17,7 @@ export interface Property {
   value: PropertyValue;
 }
 
-// PropertyValue is `#[serde(untagged)]` on the Rust side — could be primitive
+// PropertyValue is `#[serde(untagged)]` on the Rust side - could be primitive
 // or an object summary for structs/arrays/maps/sets. We model it as `unknown`
 // at the type-system level and let the rendering layer branch.
 export type PropertyValue = unknown;
@@ -49,11 +49,11 @@ export type PropertyChange =
   | { kind: "removed"; path: string; ty: string; value: PropertyValue }
   | { kind: "changed"; path: string; ty: string; old: PropertyValue; new: PropertyValue };
 
-// Rust: graph_diff::NodeStatus — serde(rename_all = "lowercase")
+// Rust: graph_diff::NodeStatus - serde(rename_all = "lowercase")
 // Values on the wire: "added", "removed", "changed", "unchanged"
 export type NodeStatus = "added" | "removed" | "changed" | "unchanged";
 
-// Rust: graph_diff::GraphDiff — serde(rename_all = "camelCase")
+// Rust: graph_diff::GraphDiff - serde(rename_all = "camelCase")
 export interface GraphDiff {
   name: string;
   onlyInOurs: boolean;
@@ -66,7 +66,7 @@ export type AppMode =
   | { kind: "standaloneGui" }
   | { kind: "gitDriverGui"; ancestor: string; ours: string; theirs: string; path: string };
 
-// Rust: graph_diff::ThreeWayNodeStatus — serde(rename_all = "camelCase")
+// Rust: graph_diff::ThreeWayNodeStatus - serde(rename_all = "camelCase")
 export type ThreeWayNodeStatus =
   | "unchanged"
   | "modifiedInOurs" | "modifiedInTheirs" | "modifiedInBoth"
@@ -74,7 +74,7 @@ export type ThreeWayNodeStatus =
   | "removedInOurs" | "removedInTheirs" | "removedInBoth"
   | "modifyDeleteConflict";
 
-// Rust: graph_diff::ThreeWayGraphDiff — serde(rename_all = "camelCase")
+// Rust: graph_diff::ThreeWayGraphDiff - serde(rename_all = "camelCase")
 export interface ThreeWayGraphDiff {
   name: string;
   onlyInOurs: boolean;

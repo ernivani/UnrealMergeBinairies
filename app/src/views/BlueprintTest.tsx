@@ -5,7 +5,7 @@
  * Mocks a BP_Base merge conflict, mirroring the real graph layout:
  *   BeginPlay → SET Health=0.0 → Branch (Condition fed from Get Health via knot)
  *               → True → PrintString (InString fed from same knot)
- *               → False → (Ours: PrintString "Health was zero" — Theirs: unconnected)
+ *               → False → (Ours: PrintString "Health was zero" - Theirs: unconnected)
  *
  *   Ours (Alice):  added a False-branch PrintString.
  *   Theirs (Bob):  fed SET Health from a new Get MaxHealth node.
@@ -13,7 +13,8 @@
  * Pin IDs must be exactly 32 hex chars (UE GuidEntity); node GUIDs likewise.
  */
 import { useState } from "react";
-import type { AssetSnapshot, MergeSide, ThreeWayGraphDiff } from "../types";
+import type { AssetSnapshot, MergeSide, ThreeWayGraphDiff, ThreeWayNodeStatus } from "../types";
+import { defaultSide } from "../mergeGraphs";
 import GraphView from "./GraphView";
 
 // Stable across both sides (used to compute diff status).
@@ -226,7 +227,7 @@ const THEIRS = makeSnapshot({ EventGraph: EVENT_GRAPH_THEIRS });
 const ANCESTOR = makeSnapshot({ EventGraph: EVENT_GRAPH_ANCESTOR });
 
 // Three-way fixture exercising every row kind:
-//   SET_HEALTH  = modifiedInBoth (conflict — both touched it)
+//   SET_HEALTH  = modifiedInBoth (conflict - both touched it)
 //   PRINT_FALSE = addedInOurs
 //   GET_MAX     = addedInTheirs
 const THREE_WAY_DIFFS: ThreeWayGraphDiff[] = [
@@ -248,14 +249,32 @@ const THREE_WAY_DIFFS: ThreeWayGraphDiff[] = [
   },
 ];
 
+function seedSelections(diffs: ThreeWayGraphDiff[]): Map<string, Map<string, MergeSide>> {
+  const seed = new Map<string, Map<string, MergeSide>>();
+  for (const d of diffs) {
+    const m = new Map<string, MergeSide>();
+    for (const [guid, st] of Object.entries(d.nodeStatuses)) {
+      const def = defaultSide(st as ThreeWayNodeStatus);
+      if (def !== null) m.set(guid, def);
+    }
+    seed.set(d.name, m);
+  }
+  return seed;
+}
+
 export default function BlueprintTest() {
-  // Per-graph side selection (only "both"-edited graphs default to "ours").
-  const [selections, setSelections] = useState<Map<string, MergeSide>>(
-    () => new Map([["EventGraph", "ours" as MergeSide]]),
+  const [selections, setSelections] = useState<Map<string, Map<string, MergeSide>>>(
+    () => seedSelections(THREE_WAY_DIFFS),
   );
 
-  function onSelectionChange(graphName: string, side: MergeSide) {
-    setSelections((prev) => new Map(prev).set(graphName, side));
+  function onSelectionChange(graphName: string, guid: string, side: MergeSide) {
+    setSelections((prev) => {
+      const next = new Map(prev);
+      const inner = new Map(next.get(graphName) ?? new Map<string, MergeSide>());
+      inner.set(guid, side);
+      next.set(graphName, inner);
+      return next;
+    });
   }
 
   return (
@@ -277,7 +296,7 @@ export default function BlueprintTest() {
           letterSpacing: "0.04em",
         }}
       >
-        BP_Base 3-way merge — Ours adds a False-branch PrintString; Theirs adds a MaxHealth getter; SET Health is a conflict. Pick in the center Result panel.
+        BP_Base 3-way merge - Ours adds a False-branch PrintString; Theirs adds a MaxHealth getter; SET Health is a conflict. Pick in the center Result panel.
       </div>
       <GraphView
         ours={OURS}

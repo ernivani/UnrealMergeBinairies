@@ -10,7 +10,7 @@ interface Props {
   diff: GraphDiff | undefined;
   threeWayDiff?: ThreeWayGraphDiff;
   selections?: Map<string, MergeSide>;
-  /** GUIDs identical on both sides — dimmed as "common/agreed". */
+  /** GUIDs identical on both sides - dimmed as "common/agreed". */
   common?: Set<string>;
   /** GUID of the node to flash/outline (set when a Result row is clicked). */
   selectedGuid?: string;

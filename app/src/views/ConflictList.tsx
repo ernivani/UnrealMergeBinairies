@@ -14,7 +14,7 @@ export default function ConflictList() {
 
   return (
     <main className={styles.root}>
-      <h1>Unreal Merge — Standalone</h1>
+      <h1>Unreal Merge - Standalone</h1>
       <p className={styles.note}>
         The full scan-the-repo workflow is deferred (Plan 4). For now, paste the
         three paths and click <em>Open</em> to view a diff.

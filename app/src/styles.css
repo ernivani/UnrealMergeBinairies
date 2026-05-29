@@ -1,5 +1,5 @@
 /**
- * Global theme — matches UE's Blueprint editor (ueblueprint).
+ * Global theme - matches UE's Blueprint editor (ueblueprint).
  *
  * Palette:
  *   --ue-bg-deep:    background-canvas
@@ -9,7 +9,7 @@
  *   --ue-text:       primary text
  *   --ue-text-dim:   secondary / labels
  *   --ue-accent:     blueprint blue (links, focus, primary buttons)
- *   --ue-exec:       white — exec wires
+ *   --ue-exec:       white - exec wires
  *   --ue-ok / --ue-warn / --ue-err: diff status colors
  */
 :root {

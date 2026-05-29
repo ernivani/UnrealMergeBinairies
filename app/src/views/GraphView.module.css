@@ -64,97 +64,53 @@
   min-height: 0;
 }
 
-/* Center "Result" pane — the chosen side's full graph for the active graph. */
+/* Center "Result" pane - the live merged graph; holds floating node badges. */
 .resultWrap {
   position: relative;
   flex: 1.2;
   display: flex;
   min-width: 0;
-}
-.resultOurs {
-  border-left: 2px solid rgba(196, 69, 69, 0.8);
-  border-right: 2px solid rgba(196, 69, 69, 0.8);
-}
-.resultTheirs {
-  border-left: 2px solid rgba(0, 137, 255, 0.8);
-  border-right: 2px solid rgba(0, 137, 255, 0.8);
+  border-left: 2px solid var(--ue-accent);
+  border-right: 2px solid var(--ue-accent);
 }
 
-/* Prominent banner when a graph was edited on both sides. */
-.conflictBanner {
+/* Floating Ours/Theirs/Skip control on a conflict node in the result pane. */
+.badge3 {
+  position: absolute;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  background: rgba(211, 106, 192, 0.14);
-  border-top: 1px solid rgba(211, 106, 192, 0.5);
-  border-bottom: 1px solid rgba(211, 106, 192, 0.5);
-  flex-shrink: 0;
+  gap: 2px;
+  background: rgba(20, 20, 30, 0.95);
+  border: 1px solid #c038a8;
+  border-radius: 4px;
+  padding: 2px;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
 }
-.conflictBannerText {
-  flex: 1;
-  font-size: 12px;
-  color: #e7b3dc;
-}
-.bannerBtn {
-  background: var(--ue-bg-raised);
-  border: 1px solid var(--ue-border);
-  color: var(--ue-text);
-  padding: 5px 16px;
-  border-radius: 3px;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-}
-.bannerBtn:hover { border-color: var(--ue-border-strong); }
-.bannerOurs { background: rgba(196, 69, 69, 0.9); border-color: rgba(196, 69, 69, 1); color: #fff; }
-.bannerTheirs { background: rgba(0, 137, 255, 0.9); border-color: rgba(0, 137, 255, 1); color: #fff; }
-
-/* Per-graph conflict resolver in the toolbar (graph both sides edited). */
-.graphConflict {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 8px;
-}
-.conflictTag {
-  font-size: 10px;
-  font-weight: 700;
-  color: #d36ac0;
-  letter-spacing: 0;
-  text-transform: none;
-}
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--ue-border);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.segBtn {
-  background: var(--ue-bg-raised);
+.badge3Btn {
+  background: transparent;
   border: none;
-  border-left: 1px solid var(--ue-border);
-  color: var(--ue-text-dim);
-  padding: 3px 12px;
-  font-size: 11px;
-  font-weight: 700;
-  font-family: inherit;
+  color: #cfcfcf;
+  padding: 3px 8px;
   cursor: pointer;
-  text-transform: none;
-  letter-spacing: 0;
-}
-.segBtn:first-child { border-left: none; }
-.segBtn:hover { color: var(--ue-text); }
-.segOurs { background: rgba(196, 69, 69, 0.9); color: #fff; }
-.segTheirs { background: rgba(0, 137, 255, 0.9); color: #fff; }
-
-.changeNote {
+  border-radius: 2px;
+  font-family: inherit;
   font-size: 10px;
-  font-weight: 600;
-  color: var(--ue-text-dim);
-  margin-left: 8px;
+  font-weight: 700;
+}
+.badge3Btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.badge3Ours { background: rgba(196, 69, 69, 0.9); color: #fff; }
+.badge3Theirs { background: rgba(0, 137, 255, 0.9); color: #fff; }
+.badge3Skip { background: #555; color: #fff; }
+
+.conflictSummary {
+  font-size: 10px;
+  color: #c038a8;
+  font-weight: 700;
+  margin-left: 12px;
   text-transform: none;
   letter-spacing: 0;
 }
-.muted { opacity: 0.6; }
+.conflictSummary.noConflicts {
+  color: #888;
+  font-weight: 400;
+}

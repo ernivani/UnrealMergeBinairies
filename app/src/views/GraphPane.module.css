@@ -24,7 +24,7 @@
 }
 
 .label.ours { color: #e08080; }
-/* Theirs label uses the default color above — blueprint blue isn't needed
+/* Theirs label uses the default color above - blueprint blue isn't needed
    since the pane is on the right side and the badge already signals it. */
 
 .canvas {

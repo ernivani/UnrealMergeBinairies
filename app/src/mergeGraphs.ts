@@ -43,7 +43,7 @@ export function parseNodeBlobs(text: string): Map<string, string> {
   return result;
 }
 
-// Canonicalise a node blob for semantic comparison — mirrors Rust
+// Canonicalise a node blob for semantic comparison - mirrors Rust
 // graph_diff::normalize_blob. Drops cosmetic NodePosX/NodePosY (UE rewrites
 // these on any edit) and whitespace so a node that only moved compares equal.
 // Strip volatile, non-semantic bits so two exports of the SAME logic compare
@@ -67,67 +67,7 @@ export function normalizeBlob(blob: string): string {
     .join("\n");
 }
 
-// --- Graph-level merge ----------------------------------------------------
-// Stitching node text across versions is unsafe (UE regenerates pin IDs, so a
-// merged graph has dangling links and crashes the importer). Instead we resolve
-// at GRAPH granularity: each graph is taken whole from one side (internally
-// consistent). Non-conflicting graphs auto-resolve; a graph both sides edited
-// is a single Ours/Theirs pick.
-
-export type GraphChange = "unchanged" | "oursOnly" | "theirsOnly" | "both";
-
-function nodeSet(text?: string): Set<string> {
-  const set = new Set<string>();
-  for (const [, blob] of parseNodeBlobs(text ?? "")) set.add(normalizeBlob(blob));
-  return set;
-}
-
-function setsEqual(a: Set<string>, b: Set<string>): boolean {
-  if (a.size !== b.size) return false;
-  for (const x of a) if (!b.has(x)) return false;
-  return true;
-}
-
-// Whether a graph changed on each side (by comparing the SET of normalized node
-// blobs against the ancestor — order-independent, cosmetic-noise-free).
-export function graphChange(anc?: string, ours?: string, theirs?: string): GraphChange {
-  const a = nodeSet(anc);
-  const oursChanged = !setsEqual(nodeSet(ours), a);
-  const theirsChanged = !setsEqual(nodeSet(theirs), a);
-  if (oursChanged && theirsChanged) return "both";
-  if (oursChanged) return "oursOnly";
-  if (theirsChanged) return "theirsOnly";
-  return "unchanged";
-}
-
-// The winning side for a graph. `graphSel` is only consulted for "both".
-export function graphWinner(change: GraphChange, sel: MergeSide | undefined): "ours" | "theirs" {
-  if (change === "theirsOnly") return "theirs";
-  if (change === "oursOnly" || change === "unchanged") return "ours";
-  return sel === "theirs" ? "theirs" : "ours"; // "both" → user pick, default ours
-}
-
-// Build the map of graphs the writeback must OVERWRITE. The base asset is ours
-// (the working-tree file), so we only emit graphs where THEIRS wins — each as
-// theirs' full, internally-consistent text. Ours-winning graphs are left as-is.
-export function buildMergedGraphsByGraph(
-  graphNames: string[],
-  ancestor: Record<string, string>,
-  ours: Record<string, string>,
-  theirs: Record<string, string>,
-  graphSel: Map<string, MergeSide>,
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const g of graphNames) {
-    const change = graphChange(ancestor[g], ours[g], theirs[g]);
-    if (graphWinner(change, graphSel.get(g)) === "theirs" && theirs[g] != null) {
-      out[g] = theirs[g];
-    }
-  }
-  return out;
-}
-
-// GUIDs whose node is identical (semantically) in both ours and theirs — i.e.
+// GUIDs whose node is identical (semantically) in both ours and theirs - i.e.
 // "agreed / common" nodes. These are dimmed in the UI so real differences pop.
 export function commonGuids(oursText?: string, theirsText?: string): Set<string> {
   const o = parseNodeBlobs(oursText ?? "");
@@ -151,12 +91,12 @@ export function defaultSide(status: ThreeWayNodeStatus): MergeSide | null {
       return null;
     case "modifiedInOurs":
     case "addedInOurs":
-    case "removedInTheirs":  // "ours kept the node" — pick ours
+    case "removedInTheirs":  // "ours kept the node" - pick ours
     case "addedInBoth":
       return "ours";
     case "modifiedInTheirs":
     case "addedInTheirs":
-    case "removedInOurs":    // "theirs kept the node" — pick theirs
+    case "removedInOurs":    // "theirs kept the node" - pick theirs
       return "theirs";
     case "modifiedInBoth":
     case "addedInBothConflict":
@@ -170,15 +110,125 @@ export function needsChoice(status: ThreeWayNodeStatus): boolean {
   return isConflictStatus(status);
 }
 
-// Build the merged text per graph from selections.
-//
-// For each GUID:
-//  - "skip" → drop entirely
-//  - "ours" / "theirs" → take that side's blob, falling back to ancestor if absent
-// Unchanged GUIDs come from ancestor.
-//
-// Output order is: unchanged-then-selected, in the order they first appeared in
-// (ancestor → ours → theirs) graph text. UE's importer doesn't care about order.
+// --- Canonicalized per-node merge -----------------------------------------
+// Stitching nodes from different versions naively crashes UE's importer: each
+// export assigns different pin IDs / object-name indices, so a node taken from
+// "ours" links to a pin ID that doesn't exist on a neighbour taken from
+// "theirs". We fix this by giving every merged node a canonical name (N_<guid>)
+// and rewriting every LinkedTo reference to use the target's canonical name +
+// the target's chosen-side pin ID. Links to non-included nodes are dropped.
+
+interface NodeMeta {
+  name: string;
+  blob: string;
+}
+interface SideMaps {
+  nameToGuid: Map<string, string>;
+  pinIdToTarget: Map<string, { guid: string; key: string }>;
+}
+
+// guid -> { name, blob } for a graph's serialization text.
+function parseNodesMeta(text: string): Map<string, NodeMeta> {
+  const map = new Map<string, NodeMeta>();
+  if (!text) return map;
+  const lines = text.split(/\r?\n/);
+  let inNode = false, depth = 0, buf: string[] = [], guid: string | null = null, name = "";
+  for (const line of lines) {
+    const t = line.trim();
+    if (!inNode) {
+      if (t.startsWith("Begin Object")) {
+        inNode = true;
+        depth = 1;
+        buf = [line];
+        guid = null;
+        name = t.match(/Name="([^"]+)"/)?.[1] ?? "";
+      }
+    } else {
+      buf.push(line);
+      if (t.startsWith("Begin Object")) depth++;
+      else if (t.startsWith("End Object")) {
+        depth--;
+        if (depth === 0) {
+          if (guid) map.set(guid, { name, blob: buf.join("\n") });
+          inNode = false;
+          buf = [];
+          guid = null;
+        }
+      } else if (depth === 1 && t.startsWith("NodeGuid=")) {
+        guid = t.slice("NodeGuid=".length).trim();
+      }
+    }
+  }
+  return map;
+}
+
+// Pins of a node: [{ pinId, key }] where key = pinName|direction.
+function pinsOf(blob: string): Array<{ pinId: string; key: string }> {
+  const pins: Array<{ pinId: string; key: string }> = [];
+  for (const line of blob.split(/\r?\n/)) {
+    const t = line.trim();
+    if (!t.startsWith("CustomProperties Pin (")) continue;
+    const id = t.match(/PinId=([0-9A-Fa-f]{32})/);
+    const nm = t.match(/PinName="([^"]+)"/);
+    const dir = t.match(/Direction="([^"]+)"/);
+    if (id && nm) pins.push({ pinId: id[1], key: `${nm[1]}|${dir ? dir[1] : "in"}` });
+  }
+  return pins;
+}
+
+function buildSideMaps(nodes: Map<string, NodeMeta>): SideMaps {
+  const nameToGuid = new Map<string, string>();
+  const pinIdToTarget = new Map<string, { guid: string; key: string }>();
+  for (const [guid, n] of nodes) {
+    if (n.name) nameToGuid.set(n.name, guid);
+    for (const p of pinsOf(n.blob)) pinIdToTarget.set(p.pinId, { guid, key: p.key });
+  }
+  return { nameToGuid, pinIdToTarget };
+}
+
+const canonName = (guid: string): string => `N_${guid}`;
+
+// Rewrite one chosen node's blob: canonical own name, drop ExportPath, and
+// remap every LinkedTo entry to the target's canonical name + chosen-side pin.
+function rewriteBlob(
+  guid: string,
+  blob: string,
+  origName: string,
+  sideMap: SideMaps,
+  included: Set<string>,
+  outPinByGuid: Map<string, Map<string, string>>,
+): string {
+  const rewritten = blob
+    .split(/\r?\n/)
+    .map((line) => {
+      let s = line.replace(/\s*ExportPath="[^"]*"/g, "");
+      s = s.replace(/LinkedTo=\(([^)]*)\)/g, (_m, inner: string) => {
+        const kept: string[] = [];
+        for (const raw of inner.split(",")) {
+          const e = raw.trim();
+          if (!e) continue;
+          const sp = e.lastIndexOf(" ");
+          if (sp < 0) continue;
+          const tName = e.slice(0, sp);
+          const tPin = e.slice(sp + 1);
+          const tGuid = sideMap.nameToGuid.get(tName);
+          const tInfo = sideMap.pinIdToTarget.get(tPin);
+          if (!tGuid || !tInfo || !included.has(tGuid)) continue; // drop dangling
+          const newPin = outPinByGuid.get(tGuid)?.get(tInfo.key);
+          if (!newPin) continue;
+          kept.push(`${canonName(tGuid)} ${newPin}`);
+        }
+        return "LinkedTo=(" + kept.map((k) => k + ",").join("") + ")";
+      });
+      return s;
+    })
+    .join("\n");
+  // Canonical own name (only on the Begin Object line).
+  return origName ? rewritten.replace(`Name="${origName}"`, `Name="${canonName(guid)}"`) : rewritten;
+}
+
+// Build the merged text per graph from per-node selections, canonicalized so
+// the result is internally consistent and UE can import it without crashing.
 export function buildMergedGraphs(
   threeWayDiffs: ThreeWayGraphDiff[],
   ancestorGraphs: Record<string, string>,
@@ -186,43 +236,48 @@ export function buildMergedGraphs(
   theirsGraphs: Record<string, string>,
   selections: Map<string /* graphName */, Map<string /* guid */, MergeSide>>,
 ): Record<string, string> {
+  void ancestorGraphs; // unchanged/common nodes are taken from ours
   const out: Record<string, string> = {};
 
   for (const diff of threeWayDiffs) {
-    const ancBlobs = parseNodeBlobs(ancestorGraphs[diff.name] ?? "");
-    const ourBlobs = parseNodeBlobs(oursGraphs[diff.name] ?? "");
-    const thrBlobs = parseNodeBlobs(theirsGraphs[diff.name] ?? "");
-    const graphSelections = selections.get(diff.name) ?? new Map();
+    const ours = parseNodesMeta(oursGraphs[diff.name] ?? "");
+    const theirs = parseNodesMeta(theirsGraphs[diff.name] ?? "");
+    const nodesBy: Record<"ours" | "theirs", Map<string, NodeMeta>> = { ours, theirs };
+    const sideMaps = { ours: buildSideMaps(ours), theirs: buildSideMaps(theirs) };
+    const graphSel = selections.get(diff.name) ?? new Map<string, MergeSide>();
 
-    const chosen: string[] = [];
-    const ordered: string[] = Array.from(
-      new Set<string>([...ancBlobs.keys(), ...ourBlobs.keys(), ...thrBlobs.keys()]),
-    );
-
-    for (const guid of ordered) {
-      const status = diff.nodeStatuses[guid];
-      if (!status) continue;
-      const side = graphSelections.get(guid) ?? defaultSide(status);
-      if (side === null) {
-        // Unchanged or removed-in-both — emit unchanged from ancestor or skip removed.
-        if (status === "unchanged") {
-          const blob = ancBlobs.get(guid);
-          if (blob) chosen.push(blob);
-        }
-        continue;
-      }
-      if (side === "skip") continue;
-
-      let blob: string | undefined;
-      if (side === "ours") {
-        blob = ourBlobs.get(guid) ?? ancBlobs.get(guid);
-      } else {
-        blob = thrBlobs.get(guid) ?? ancBlobs.get(guid);
-      }
-      if (blob) chosen.push(blob);
+    // Decide which node comes from which side.
+    const chosen = new Map<string, "ours" | "theirs">();
+    for (const [guid, status] of Object.entries(diff.nodeStatuses)) {
+      // Unchanged/common nodes are kept (from ours); removedInBoth is dropped;
+      // everything else follows the user pick or the per-status default.
+      let picked: MergeSide | null;
+      const sel = graphSel.get(guid);
+      if (sel !== undefined) picked = sel;
+      else if (status === "unchanged") picked = "ours";
+      else picked = defaultSide(status);
+      if (picked === null || picked === "skip") continue;
+      // Fall back to whichever side actually has the node.
+      const side: "ours" | "theirs" =
+        picked === "theirs" ? (theirs.has(guid) ? "theirs" : "ours") : ours.has(guid) ? "ours" : "theirs";
+      if (nodesBy[side].has(guid)) chosen.set(guid, side);
     }
 
-    out[diff.name] = chosen.join("\n") + (chosen.length ? "\n" : "");
+    const included = new Set(chosen.keys());
+    // Output pin map per node (keys -> chosen-side pin ids).
+    const outPinByGuid = new Map<string, Map<string, string>>();
+    for (const [guid, side] of chosen) {
+      const m = new Map<string, string>();
+      for (const p of pinsOf(nodesBy[side].get(guid)!.blob)) m.set(p.key, p.pinId);
+      outPinByGuid.set(guid, m);
+    }
+
+    const blobs: string[] = [];
+    for (const [guid, side] of chosen) {
+      const meta = nodesBy[side].get(guid)!;
+      blobs.push(rewriteBlob(guid, meta.blob, meta.name, sideMaps[side], included, outPinByGuid));
+    }
+    out[diff.name] = blobs.join("\n") + (blobs.length ? "\n" : "");
   }
 
   return out;
