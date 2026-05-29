@@ -10,9 +10,11 @@ interface Props {
   diff: GraphDiff | undefined;
   threeWayDiff?: ThreeWayGraphDiff;
   selections?: Map<string, MergeSide>;
+  /** GUID of the node to flash/outline (set when a Result row is clicked). */
+  selectedGuid?: string;
 }
 
-export default function GraphPane({ label, side, graphText, diff, threeWayDiff, selections }: Props) {
+export default function GraphPane({ label, side, graphText, diff, threeWayDiff, selections, selectedGuid }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,6 +61,24 @@ export default function GraphPane({ label, side, graphText, diff, threeWayDiff, 
       canvas.innerHTML = "";
     };
   }, [graphText, diff, threeWayDiff, selections, side]);
+
+  // Flash/outline the node selected in the Result panel. Separate effect so it
+  // toggles without re-rendering the (expensive) blueprint canvas.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let scrolled = false;
+    canvas.querySelectorAll("ueb-node").forEach((el) => {
+      const nodeEl = el as HTMLElement & { entity?: { NodeGuid?: { toString(): string } } };
+      const guid = nodeEl.entity?.NodeGuid?.toString();
+      const match = !!selectedGuid && guid === selectedGuid;
+      nodeEl.classList.toggle("uem-selected", match);
+      if (match && !scrolled) {
+        scrolled = true;
+        el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+      }
+    });
+  }, [selectedGuid, graphText, threeWayDiff]);
 
   return (
     <div className={styles.pane}>

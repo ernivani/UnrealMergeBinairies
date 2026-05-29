@@ -7,8 +7,8 @@ import type {
   ThreeWayNodeStatus,
 } from "../types";
 import { isConflictStatus } from "../types";
-import { defaultSide } from "../mergeGraphs";
 import GraphPane from "./GraphPane";
+import ResultPanel from "./ResultPanel";
 import styles from "./GraphView.module.css";
 
 interface Props {
@@ -50,11 +50,19 @@ export default function GraphView({
   const [activeGraph, setActiveGraph] = useState<string>(
     () => allGraphNames[0] ?? "",
   );
+  // The row the user clicked in the Result panel — flashed in both side panes.
+  const [selectedGuid, setSelectedGuid] = useState<string | undefined>(undefined);
+
   useEffect(() => {
     if (allGraphNames.length > 0 && !allGraphNames.includes(activeGraph)) {
       setActiveGraph(allGraphNames[0]);
     }
   }, [allGraphNames, activeGraph]);
+
+  // Clear the flashed node when switching graphs.
+  useEffect(() => {
+    setSelectedGuid(undefined);
+  }, [activeGraph]);
 
   const activeDiff = useMemo(
     () => graphDiffs.find((d) => d.name === activeGraph),
@@ -71,6 +79,7 @@ export default function GraphView({
 
   const oursText = ours.asset.graphs?.[activeGraph];
   const theirsText = theirs.asset.graphs?.[activeGraph];
+  const ancestorText = ancestor?.asset.graphs?.[activeGraph];
 
   const onlyInOurs =
     activeThreeWayDiff?.onlyInOurs ??
@@ -81,13 +90,14 @@ export default function GraphView({
     activeDiff?.onlyInTheirs ??
     (oursText == null && theirsText != null);
 
-  // Conflict summary for the toolbar (only meaningful in 3-way mode).
-  const conflictGuids = useMemo(() => {
-    if (!activeThreeWayDiff) return [] as string[];
-    return Object.entries(activeThreeWayDiff.nodeStatuses)
-      .filter(([, s]) => isConflictStatus(s as ThreeWayNodeStatus))
-      .map(([guid]) => guid);
+  const conflictCount = useMemo(() => {
+    if (!activeThreeWayDiff) return 0;
+    return Object.values(activeThreeWayDiff.nodeStatuses).filter((s) =>
+      isConflictStatus(s as ThreeWayNodeStatus),
+    ).length;
   }, [activeThreeWayDiff]);
+
+  const threeWayMode = activeThreeWayDiff != null && onSelectionChange != null;
 
   return (
     <div className={styles.container}>
@@ -111,15 +121,15 @@ export default function GraphView({
           <span className={`${styles.badge} ${styles.badgeTheirs}`}>only in Theirs</span>
         )}
         {activeThreeWayDiff && (
-          <span className={`${styles.conflictSummary} ${conflictGuids.length === 0 ? styles.noConflicts : ""}`}>
-            {conflictGuids.length === 0
+          <span className={`${styles.conflictSummary} ${conflictCount === 0 ? styles.noConflicts : ""}`}>
+            {conflictCount === 0
               ? "no conflicts"
-              : `${conflictGuids.length} conflict${conflictGuids.length === 1 ? "" : "s"}`}
+              : `${conflictCount} conflict${conflictCount === 1 ? "" : "s"}`}
           </span>
         )}
       </div>
 
-      <div className={styles.split} style={{ position: "relative" }}>
+      <div className={styles.split}>
         <GraphPane
           label="Ours"
           side="ours"
@@ -127,7 +137,22 @@ export default function GraphView({
           diff={activeThreeWayDiff ? undefined : activeDiff}
           threeWayDiff={activeThreeWayDiff}
           selections={activeSelections}
+          selectedGuid={selectedGuid}
         />
+        {threeWayMode && activeThreeWayDiff && (
+          <ResultPanel
+            diff={activeThreeWayDiff}
+            oursText={oursText}
+            theirsText={theirsText}
+            ancestorText={ancestorText}
+            selections={activeSelections}
+            onSelect={(guid, side) => onSelectionChange!(activeGraph, guid, side)}
+            selectedGuid={selectedGuid}
+            onRowClick={(guid) =>
+              setSelectedGuid((prev) => (prev === guid ? undefined : guid))
+            }
+          />
+        )}
         <GraphPane
           label="Theirs"
           side="theirs"
@@ -135,110 +160,9 @@ export default function GraphView({
           diff={activeThreeWayDiff ? undefined : activeDiff}
           threeWayDiff={activeThreeWayDiff}
           selections={activeSelections}
+          selectedGuid={selectedGuid}
         />
-        {activeThreeWayDiff && onSelectionChange && (
-          <ConflictPickers
-            diff={activeThreeWayDiff}
-            selections={activeSelections}
-            onPick={(guid, side) => onSelectionChange(activeGraph, guid, side)}
-          />
-        )}
       </div>
     </div>
-  );
-}
-
-interface PickersProps {
-  diff: ThreeWayGraphDiff;
-  selections: Map<string, MergeSide>;
-  onPick: (guid: string, side: MergeSide) => void;
-}
-
-// Renders a small floating picker per conflicting node. Position-tracking
-// uses a MutationObserver to find <ueb-node> elements and align to them.
-function ConflictPickers({ diff, selections, onPick }: PickersProps) {
-  const [positions, setPositions] = useState<Array<{ guid: string; top: number; left: number }>>([]);
-
-  useEffect(() => {
-    const conflicts = Object.entries(diff.nodeStatuses)
-      .filter(([, s]) => isConflictStatus(s as ThreeWayNodeStatus))
-      .map(([guid]) => guid);
-
-    if (conflicts.length === 0) {
-      setPositions([]);
-      return;
-    }
-
-    // The pickers position over the OURS pane (first pane). Find its DOM.
-    const container = document.querySelector(`.${styles.split}`);
-    if (!container) return;
-    const oursPane = container.children[0] as HTMLElement | undefined;
-    if (!oursPane) return;
-
-    function recompute() {
-      const next: Array<{ guid: string; top: number; left: number }> = [];
-      const containerRect = oursPane!.getBoundingClientRect();
-      const nodeEls = oursPane!.querySelectorAll("ueb-node");
-      nodeEls.forEach((el) => {
-        const nodeEl = el as HTMLElement & { entity?: { NodeGuid?: { toString(): string } } };
-        const guid = nodeEl.entity?.NodeGuid?.toString();
-        if (!guid || !conflicts.includes(guid)) return;
-        const r = el.getBoundingClientRect();
-        next.push({
-          guid,
-          top: r.top - containerRect.top,
-          left: r.left - containerRect.left + r.width / 2 - 40,
-        });
-      });
-      setPositions(next);
-    }
-
-    recompute();
-    const observer = new MutationObserver(recompute);
-    observer.observe(oursPane, { childList: true, subtree: true, attributes: true });
-    const interval = window.setInterval(recompute, 1000); // catch scroll/zoom changes
-
-    return () => {
-      observer.disconnect();
-      window.clearInterval(interval);
-    };
-  }, [diff]);
-
-  return (
-    <>
-      {positions.map(({ guid, top, left }) => {
-        const status = diff.nodeStatuses[guid];
-        const cur = selections.get(guid) ?? defaultSide(status);
-        return (
-          <div
-            key={guid}
-            className={styles.conflictPicker}
-            style={{ top, left }}
-          >
-            <button
-              className={`${styles.conflictPickerBtn} ${cur === "ours" ? styles.conflictPickerBtnActive : ""}`}
-              onClick={() => onPick(guid, "ours")}
-              title="Take Ours"
-            >
-              O
-            </button>
-            <button
-              className={`${styles.conflictPickerBtn} ${cur === "theirs" ? styles.conflictPickerBtnActive : ""}`}
-              onClick={() => onPick(guid, "theirs")}
-              title="Take Theirs"
-            >
-              T
-            </button>
-            <button
-              className={`${styles.conflictPickerBtn} ${cur === "skip" ? styles.conflictPickerBtnActive : ""}`}
-              onClick={() => onPick(guid, "skip")}
-              title="Skip (omit this node from the merge)"
-            >
-              —
-            </button>
-          </div>
-        );
-      })}
-    </>
   );
 }

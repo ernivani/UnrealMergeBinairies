@@ -102,3 +102,8 @@ code, pre, .mono {
 .uem-three-way-dimmed {
   opacity: 0.3 !important;
 }
+.uem-selected {
+  outline: 3px solid #f0a020 !important;
+  box-shadow: 0 0 22px rgba(240, 160, 32, 0.85) !important;
+  z-index: 50;
+}

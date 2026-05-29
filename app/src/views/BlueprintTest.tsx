@@ -12,7 +12,9 @@
  *
  * Pin IDs must be exactly 32 hex chars (UE GuidEntity); node GUIDs likewise.
  */
-import type { AssetSnapshot, ThreeWayGraphDiff } from "../types";
+import { useState } from "react";
+import type { AssetSnapshot, MergeSide, ThreeWayGraphDiff } from "../types";
+import { defaultSide } from "../mergeGraphs";
 import GraphView from "./GraphView";
 
 // Stable across both sides (used to compute diff status).
@@ -224,9 +226,10 @@ const THEIRS = makeSnapshot({ EventGraph: EVENT_GRAPH_THEIRS });
 
 const ANCESTOR = makeSnapshot({ EventGraph: EVENT_GRAPH_ANCESTOR });
 
-// Three-way: SET_HEALTH = ModifiedInTheirs (theirs added MaxHealth pin)
-//            PRINT_FALSE = AddedInOurs
-//            GET_MAX = AddedInTheirs
+// Three-way fixture exercising every row kind:
+//   SET_HEALTH  = modifiedInBoth (conflict — both touched it)
+//   PRINT_FALSE = addedInOurs
+//   GET_MAX     = addedInTheirs
 const THREE_WAY_DIFFS: ThreeWayGraphDiff[] = [
   {
     name: "EventGraph",
@@ -235,7 +238,7 @@ const THREE_WAY_DIFFS: ThreeWayGraphDiff[] = [
     onlyInAncestor: false,
     nodeStatuses: {
       [G_BEGINPLAY]:   "unchanged",
-      [G_SET_HEALTH]:  "modifiedInTheirs",
+      [G_SET_HEALTH]:  "modifiedInBoth",
       [G_BRANCH]:      "unchanged",
       [G_PRINT_TRUE]:  "unchanged",
       [G_GET_HEALTH]:  "unchanged",
@@ -246,7 +249,34 @@ const THREE_WAY_DIFFS: ThreeWayGraphDiff[] = [
   },
 ];
 
+function seedSelections(diffs: ThreeWayGraphDiff[]): Map<string, Map<string, MergeSide>> {
+  const seed = new Map<string, Map<string, MergeSide>>();
+  for (const d of diffs) {
+    const m = new Map<string, MergeSide>();
+    for (const [guid, st] of Object.entries(d.nodeStatuses)) {
+      const def = defaultSide(st);
+      if (def !== null) m.set(guid, def);
+    }
+    seed.set(d.name, m);
+  }
+  return seed;
+}
+
 export default function BlueprintTest() {
+  const [selections, setSelections] = useState<Map<string, Map<string, MergeSide>>>(
+    () => seedSelections(THREE_WAY_DIFFS),
+  );
+
+  function onSelectionChange(graphName: string, guid: string, side: MergeSide) {
+    setSelections((prev) => {
+      const next = new Map(prev);
+      const inner = new Map(next.get(graphName) ?? new Map<string, MergeSide>());
+      inner.set(guid, side);
+      next.set(graphName, inner);
+      return next;
+    });
+  }
+
   return (
     <div
       style={{
@@ -266,7 +296,7 @@ export default function BlueprintTest() {
           letterSpacing: "0.04em",
         }}
       >
-        BP_Base 3-way conflict — Alice (Ours) adds False-branch PrintString; Bob (Theirs) feeds SET Health from MaxHealth. No real conflict — Take Both auto-merges.
+        BP_Base 3-way merge — Ours adds a False-branch PrintString; Theirs adds a MaxHealth getter; SET Health is a conflict. Pick in the center Result panel.
       </div>
       <GraphView
         ours={OURS}
@@ -274,8 +304,8 @@ export default function BlueprintTest() {
         graphDiffs={[]}
         ancestor={ANCESTOR}
         threeWayDiffs={THREE_WAY_DIFFS}
-        selections={new Map()}
-        onSelectionChange={() => {}}
+        selections={selections}
+        onSelectionChange={onSelectionChange}
       />
     </div>
   );
