@@ -70,3 +70,18 @@ export async function applyGraphMerge(
     hostProjectOverride: options?.hostProjectOverride,
   });
 }
+
+export async function applyGraphMergeAdditive(
+  targetPath: string,
+  destPath: string,
+  additiveGraphs: Record<string, { paste: string; remove: string[] }>,
+  options?: { sidecarOverride?: string; hostProjectOverride?: string },
+): Promise<void> {
+  await invoke<void>("apply_graph_merge_additive", {
+    targetPath,
+    destPath,
+    additiveGraphs,
+    sidecarOverride: options?.sidecarOverride,
+    hostProjectOverride: options?.hostProjectOverride,
+  });
+}

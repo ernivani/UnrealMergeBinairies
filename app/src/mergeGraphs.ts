@@ -352,3 +352,88 @@ export function buildMergedGraphs(
 
   return out;
 }
+
+// --- Additive selective merge --------------------------------------------
+// Turn per-node picks into a paste/remove plan per graph, for the crash-safe
+// additive writeback (load ours, remove dropped, paste theirs' chosen nodes).
+// Rule per node: effective side = selection or per-status default.
+//   - paste theirs' node when effective is "theirs" and theirs has it
+//   - remove ours' node when ours has it and effective is not "ours"
+// Pasted nodes' links are remapped: to other pasted nodes (kept as-is, UE
+// remaps internally), to remaining ours nodes (rewritten to ours' name+pinId),
+// else dropped.
+export interface AdditiveGraph {
+  paste: string;
+  remove: string[];
+}
+
+export function buildAdditiveGraphs(
+  threeWayDiffs: ThreeWayGraphDiff[],
+  oursGraphs: Record<string, string>,
+  theirsGraphs: Record<string, string>,
+  selections: Map<string, Map<string, MergeSide>>,
+): Record<string, AdditiveGraph> {
+  const out: Record<string, AdditiveGraph> = {};
+
+  for (const diff of threeWayDiffs) {
+    const ours = parseNodesMeta(oursGraphs[diff.name] ?? "");
+    const theirs = parseNodesMeta(theirsGraphs[diff.name] ?? "");
+    const theirsMaps = buildSideMaps(theirs);
+    const oursPinByGuid = new Map<string, Map<string, string>>();
+    for (const [guid, n] of ours) {
+      const m = new Map<string, string>();
+      for (const p of pinsOf(n.blob)) m.set(p.key, p.pinId);
+      oursPinByGuid.set(guid, m);
+    }
+    const gsel = selections.get(diff.name) ?? new Map<string, MergeSide>();
+
+    const pasteGuids: string[] = [];
+    const removeGuids: string[] = [];
+    for (const [guid, status] of Object.entries(diff.nodeStatuses)) {
+      const effective: MergeSide = gsel.get(guid) ?? defaultSide(status) ?? "ours";
+      if (effective === "theirs" && theirs.has(guid)) pasteGuids.push(guid);
+      if (ours.has(guid) && effective !== "ours") removeGuids.push(guid);
+    }
+    if (pasteGuids.length === 0 && removeGuids.length === 0) continue;
+
+    const pasteSet = new Set(pasteGuids);
+    const removeSet = new Set(removeGuids);
+
+    const blobs = pasteGuids.map((guid) => {
+      const blob = theirs.get(guid)!.blob;
+      return blob
+        .split(/\r?\n/)
+        .map((line) => {
+          let s = line.replace(/\s*ExportPath="[^"]*"/g, "");
+          s = s.replace(/LinkedTo=\(([^)]*)\)/g, (_m, inner: string) => {
+            const kept: string[] = [];
+            for (const raw of inner.split(",")) {
+              const e = raw.trim();
+              if (!e) continue;
+              const sp = e.lastIndexOf(" ");
+              if (sp < 0) continue;
+              const tName = e.slice(0, sp);
+              const tPin = e.slice(sp + 1);
+              const tGuid = theirsMaps.nameToGuid.get(tName);
+              const tInfo = theirsMaps.pinIdToTarget.get(tPin);
+              if (!tGuid || !tInfo) continue;
+              if (pasteSet.has(tGuid)) {
+                kept.push(e); // link to another pasted node
+              } else if (ours.has(tGuid) && !removeSet.has(tGuid)) {
+                const np = oursPinByGuid.get(tGuid)?.get(tInfo.key);
+                const onName = ours.get(tGuid)!.name;
+                if (np && onName) kept.push(`${onName} ${np}`);
+              }
+            }
+            return "LinkedTo=(" + kept.map((k) => k + ",").join("") + ")";
+          });
+          return s;
+        })
+        .join("\n");
+    });
+
+    out[diff.name] = { paste: blobs.join("\n") + (blobs.length ? "\n" : ""), remove: removeGuids };
+  }
+
+  return out;
+}

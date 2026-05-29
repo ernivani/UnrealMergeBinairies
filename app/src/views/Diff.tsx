@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  applyGraphMerge,
+  applyGraphMergeAdditive,
   applyResolution,
   closeWithExit,
   diffGraphs,
@@ -14,8 +14,10 @@ import type {
   MergeSide,
   PropertyChange,
   ThreeWayGraphDiff,
+  ThreeWayNodeStatus,
 } from "../types";
-import { buildMergedGraphsByGraph, graphChange } from "../mergeGraphs";
+import { isConflictStatus } from "../types";
+import { buildAdditiveGraphs, defaultSide } from "../mergeGraphs";
 import GraphView from "./GraphView";
 import PropertiesDiff from "./PropertiesDiff";
 import Resolve from "./Resolve";
@@ -54,8 +56,8 @@ export default function Diff({ oursPath, theirsPath, destPath, ancestorPath, tar
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [resolving, setResolving] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("graph");
-  // Per-graph side selection (only consulted for graphs both sides edited).
-  const [selections, setSelections] = useState<Map<string, MergeSide>>(new Map());
+  // Per-graph per-GUID node selections, seeded from per-status defaults.
+  const [selections, setSelections] = useState<Map<string, Map<string, MergeSide>>>(new Map());
 
   useEffect(() => {
     setActiveTab("graph");
@@ -81,14 +83,16 @@ export default function Diff({ oursPath, theirsPath, destPath, ancestorPath, tar
         }
         if (!cancelled) {
           setStatus({ kind: "ready", ours, theirs, ancestor, changes, graphDiffs, threeWayDiffs });
-          if (ancestor) {
-            // Default every both-edited graph to "ours" (current branch).
-            const seed = new Map<string, MergeSide>();
-            const ag = ancestor.asset.graphs ?? {};
-            const og = ours.asset.graphs ?? {};
-            const tg = theirs.asset.graphs ?? {};
-            for (const g of new Set([...Object.keys(ag), ...Object.keys(og), ...Object.keys(tg)])) {
-              if (graphChange(ag[g], og[g], tg[g]) === "both") seed.set(g, "ours");
+          if (threeWayDiffs) {
+            // Seed each node from its default side so Take Both = sensible union.
+            const seed = new Map<string, Map<string, MergeSide>>();
+            for (const d of threeWayDiffs) {
+              const m = new Map<string, MergeSide>();
+              for (const [guid, st] of Object.entries(d.nodeStatuses)) {
+                const def = defaultSide(st as ThreeWayNodeStatus);
+                if (def !== null) m.set(guid, def);
+              }
+              seed.set(d.name, m);
             }
             setSelections(seed);
           }
@@ -110,19 +114,23 @@ export default function Diff({ oursPath, theirsPath, destPath, ancestorPath, tar
     return s;
   }, [status]);
 
-  const onSelectionChange = useCallback((graphName: string, side: MergeSide) => {
-    setSelections((prev) => new Map(prev).set(graphName, side));
+  const onSelectionChange = useCallback((graphName: string, guid: string, side: MergeSide) => {
+    setSelections((prev) => {
+      const next = new Map(prev);
+      const inner = new Map(next.get(graphName) ?? new Map<string, MergeSide>());
+      inner.set(guid, side);
+      next.set(graphName, inner);
+      return next;
+    });
   }, []);
 
-  // Conflicts = graphs both sides edited (each needs a per-graph pick).
   const conflictCount = useMemo(() => {
-    if (status.kind !== "ready" || !status.ancestor) return 0;
-    const ag = status.ancestor.asset.graphs ?? {};
-    const og = status.ours.asset.graphs ?? {};
-    const tg = status.theirs.asset.graphs ?? {};
+    if (status.kind !== "ready" || !status.threeWayDiffs) return 0;
     let n = 0;
-    for (const g of new Set([...Object.keys(ag), ...Object.keys(og), ...Object.keys(tg)])) {
-      if (graphChange(ag[g], og[g], tg[g]) === "both") n += 1;
+    for (const d of status.threeWayDiffs) {
+      for (const st of Object.values(d.nodeStatuses)) {
+        if (isConflictStatus(st as ThreeWayNodeStatus)) n += 1;
+      }
     }
     return n;
   }, [status]);
@@ -136,16 +144,17 @@ export default function Diff({ oursPath, theirsPath, destPath, ancestorPath, tar
       }
       if (kind === "both") {
         const target = targetPath ?? destPath;
-        if (status.kind !== "ready" || !status.ancestor) {
-          throw new Error("Take Both is not available (missing ancestor)");
+        if (status.kind !== "ready" || !status.threeWayDiffs) {
+          throw new Error("Take Both is not available (missing three-way diff)");
         }
-        const ag = status.ancestor.asset.graphs ?? {};
-        const og = status.ours.asset.graphs ?? {};
-        const tg = status.theirs.asset.graphs ?? {};
-        const names = Array.from(new Set([...Object.keys(ag), ...Object.keys(og), ...Object.keys(tg)]));
-        // Base asset is ours; only overwrite graphs where theirs wins (whole-graph).
-        const merged = buildMergedGraphsByGraph(names, ag, og, tg, selections);
-        await applyGraphMerge(target, destPath, merged);
+        // Additive selective merge: load ours, paste theirs' chosen nodes.
+        const additive = buildAdditiveGraphs(
+          status.threeWayDiffs,
+          status.ours.asset.graphs ?? {},
+          status.theirs.asset.graphs ?? {},
+          selections,
+        );
+        await applyGraphMergeAdditive(target, destPath, additive);
         await closeWithExit(0);
         return;
       }
