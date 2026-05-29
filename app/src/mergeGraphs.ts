@@ -46,10 +46,23 @@ export function parseNodeBlobs(text: string): Map<string, string> {
 // Canonicalise a node blob for semantic comparison — mirrors Rust
 // graph_diff::normalize_blob. Drops cosmetic NodePosX/NodePosY (UE rewrites
 // these on any edit) and whitespace so a node that only moved compares equal.
+// Strip volatile, non-semantic bits so two exports of the SAME logic compare
+// equal (kept in sync with Rust graph_diff::normalize_blob):
+//   ExportPath (per-file package path), PinToolTip/PinFriendlyName (display),
+//   32-hex GUIDs (PinId/link/member/persistent), and K2Node_<Class>_<index>.
 export function normalizeBlob(blob: string): string {
   return blob
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((l) =>
+      l
+        .trim()
+        .replace(/\s*ExportPath="[^"]*"/g, "")
+        .replace(/,?PinToolTip="(?:[^"\\]|\\.)*"/g, "")
+        .replace(/,?PinFriendlyName=NSLOCTEXT\([^)]*\)/g, "")
+        .replace(/,?PinFriendlyName="(?:[^"\\]|\\.)*"/g, "")
+        .replace(/(?<![0-9A-Fa-f])[0-9A-Fa-f]{32}(?![0-9A-Fa-f])/g, "<GUID>")
+        .replace(/(K2Node_[A-Za-z]+)_\d+/g, "$1"),
+    )
     .filter((l) => l && !l.startsWith("NodePosX=") && !l.startsWith("NodePosY="))
     .join("\n");
 }

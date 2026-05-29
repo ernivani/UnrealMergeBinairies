@@ -165,17 +165,73 @@ pub fn diff_graphs_three_way_inner(
 // whenever either side edits the graph) isn't reported as changed/conflicting.
 // Trims each line and drops blank lines so whitespace/line-ending differences
 // don't matter either.
+// Volatile, non-semantic bits of UE node serialization that differ between two
+// exports of the *same* logic and would otherwise create false conflicts:
+//   - ExportPath="..."        : embeds the per-file package path
+//   - PinToolTip / PinFriendlyName : display-only, regenerated on reconstruction
+//   - 32-hex GUIDs            : PinId / link / member / persistent IDs UE renews
+//   - K2Node_<Class>_<index>  : the object-name index UE renumbers
+// Patterns mirror the TS `normalizeBlob` in app/src/mergeGraphs.ts exactly.
+use std::sync::OnceLock;
+fn norm_patterns() -> &'static [(regex::Regex, &'static str)] {
+    static RE: OnceLock<Vec<(regex::Regex, &'static str)>> = OnceLock::new();
+    RE.get_or_init(|| {
+        vec![
+            (regex::Regex::new(r#"\s*ExportPath="[^"]*""#).unwrap(), ""),
+            (regex::Regex::new(r#",?PinToolTip="(?:[^"\\]|\\.)*""#).unwrap(), ""),
+            (regex::Regex::new(r#",?PinFriendlyName=NSLOCTEXT\([^)]*\)"#).unwrap(), ""),
+            (regex::Regex::new(r#",?PinFriendlyName="(?:[^"\\]|\\.)*""#).unwrap(), ""),
+            // Rust regex has no look-around; bound the GUID with non-hex or ends
+            // via a capturing wrapper applied below instead.
+        ]
+    })
+}
+
+fn canon_guids(s: &str) -> String {
+    // Replace maximal runs of exactly 32 hex chars with <GUID>.
+    let mut out = String::with_capacity(s.len());
+    let mut run = String::new();
+    let flush = |run: &mut String, out: &mut String| {
+        if !run.is_empty() {
+            if run.len() == 32 {
+                out.push_str("<GUID>");
+            } else {
+                out.push_str(run);
+            }
+            run.clear();
+        }
+    };
+    for ch in s.chars() {
+        if ch.is_ascii_hexdigit() {
+            run.push(ch);
+        } else {
+            flush(&mut run, &mut out);
+            out.push(ch);
+        }
+    }
+    flush(&mut run, &mut out);
+    out
+}
+
+fn strip_name_index() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| regex::Regex::new(r"(K2Node_[A-Za-z]+)_\d+").unwrap())
+}
+
 fn normalize_blob(blob: &str) -> String {
-    let mut out: Vec<&str> = Vec::new();
+    let mut out: Vec<String> = Vec::new();
     for line in blob.lines() {
         let t = line.trim();
-        if t.is_empty() {
+        if t.is_empty() || t.starts_with("NodePosX=") || t.starts_with("NodePosY=") {
             continue;
         }
-        if t.starts_with("NodePosX=") || t.starts_with("NodePosY=") {
-            continue;
+        let mut s = t.to_string();
+        for (re, rep) in norm_patterns() {
+            s = re.replace_all(&s, *rep).into_owned();
         }
-        out.push(t);
+        s = canon_guids(&s);
+        s = strip_name_index().replace_all(&s, "$1").into_owned();
+        out.push(s.trim().to_string());
     }
     out.join("\n")
 }
