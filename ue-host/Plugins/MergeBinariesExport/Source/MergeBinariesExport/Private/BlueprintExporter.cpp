@@ -2,7 +2,8 @@
 
 #include "Engine/Blueprint.h"
 #include "EdGraph/EdGraph.h"
-#include "Kismet2/BlueprintEditorUtils.h"
+#include "EdGraph/EdGraphNode.h"
+#include "EdGraphUtilities.h"
 
 TArray<FGraphExport> FBlueprintExporter::ExportGraphs(UBlueprint* Blueprint)
 {
@@ -18,9 +19,16 @@ TArray<FGraphExport> FBlueprintExporter::ExportGraphs(UBlueprint* Blueprint)
 	{
 		if (!Graph) { continue; }
 
-		TSet<UEdGraphNode*> NodeSet(Graph->Nodes);
+		// FEdGraphUtilities::ExportNodesToText takes a TSet<UObject*>.
+		TSet<UObject*> NodeSet;
+		NodeSet.Reserve(Graph->Nodes.Num());
+		for (UEdGraphNode* Node : Graph->Nodes)
+		{
+			if (Node) { NodeSet.Add(Node); }
+		}
+
 		FString ExportedText;
-		FBlueprintEditorUtils::ExportNodesToText(NodeSet, ExportedText);
+		FEdGraphUtilities::ExportNodesToText(NodeSet, ExportedText);
 
 		FGraphExport Export;
 		Export.GraphName = Graph->GetName();

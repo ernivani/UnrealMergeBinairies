@@ -10,6 +10,42 @@ use crate::schema::AssetSnapshot;
 use crate::sidecar::{Sidecar, SidecarConfig};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Git's merge driver hands us extension-less temp blobs (e.g. `.merge_file_x9Q2`).
+/// The UE commandlet's package loader requires a `.uasset`/`.umap` file on disk.
+/// Returns true when `path` must be copied to a `.uasset` temp before loading.
+fn needs_staging(path: &Path) -> bool {
+    match path.extension().and_then(|e| e.to_str()) {
+        Some(ext) => {
+            let ext = ext.to_ascii_lowercase();
+            ext != "uasset" && ext != "umap"
+        }
+        None => true,
+    }
+}
+
+/// Copy `src` to a uniquely-named `.uasset` file in the temp dir so the
+/// commandlet can load it. Caller is responsible for deleting the result.
+fn stage_as_uasset(src: &Path) -> std::io::Result<PathBuf> {
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let raw = src.file_name().and_then(|s| s.to_str()).unwrap_or("asset");
+    let clean: String = raw
+        .trim_start_matches('.')
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' })
+        .collect();
+    let clean = if clean.is_empty() { "asset".to_string() } else { clean };
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let dest = std::env::temp_dir().join(format!(
+        "unreal_merge_stage_{}_{}_{}.uasset",
+        std::process::id(),
+        n,
+        clean
+    ));
+    std::fs::copy(src, &dest)?;
+    Ok(dest)
+}
 
 /// Returned to the frontend at startup so the React app knows whether to
 /// open the standalone list or the focused merge view.
@@ -143,9 +179,9 @@ pub fn apply_graph_merge(
     let exe = sidecar_override
         .map(PathBuf::from)
         .unwrap_or_else(default_sidecar);
-    let host_project = host_project_override
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("ue-host/HostProject.uproject"));
+    // Resolve the owning project from the working-tree dest path (it lives in
+    // the game's Content tree), falling back to the ancestor temp path.
+    let host_project = resolve_host_project(Path::new(&dest_path), host_project_override);
 
     let args = if exe.to_string_lossy().to_lowercase().contains("unrealeditor") {
         vec![
@@ -187,9 +223,7 @@ pub fn export_asset(
     let exe = sidecar_override
         .map(PathBuf::from)
         .unwrap_or_else(default_sidecar);
-    let host_project = host_project_override
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("ue-host/HostProject.uproject"));
+    let host_project = resolve_host_project(Path::new(&path), host_project_override);
 
     let args = if exe.to_string_lossy().to_lowercase().contains("unrealeditor") {
         vec![
@@ -219,21 +253,102 @@ pub fn export_asset(
         log_redirect,
     });
 
-    let abs = std::fs::canonicalize(&path).map_err(|e| format!("canonicalise {}: {}", path, e))?;
-    let path_str = abs.to_string_lossy().replace('\\', "/");
-    let requests = vec![serde_json::json!({"id": 1, "cmd": "export", "path": path_str})];
+    // Stage extension-less inputs (git temp blobs) into a real .uasset file.
+    let src = Path::new(&path);
+    let staged = if needs_staging(src) {
+        Some(stage_as_uasset(src).map_err(|e| format!("stage {}: {}", path, e))?)
+    } else {
+        None
+    };
+    let load_path = staged.as_deref().unwrap_or(src);
 
-    let responses = sidecar.run_batch(&requests).map_err(|e| e.to_string())?;
-    let response = responses
-        .into_iter()
-        .find(|r| r.get("id").and_then(|i| i.as_u64()) == Some(1))
-        .ok_or_else(|| "no id=1 response from sidecar".to_string())?;
-    let snap: AssetSnapshot =
-        serde_json::from_value(response).map_err(|e| format!("parse snapshot: {}", e))?;
-    if !snap.ok {
-        return Err("commandlet reported ok=false".to_string());
+    let result = (|| {
+        let abs = std::fs::canonicalize(load_path)
+            .map_err(|e| format!("canonicalise {}: {}", load_path.display(), e))?;
+        let path_str = abs.to_string_lossy().replace('\\', "/");
+        let requests = vec![serde_json::json!({"id": 1, "cmd": "export", "path": path_str})];
+
+        let responses = sidecar.run_batch(&requests).map_err(|e| e.to_string())?;
+        let response = responses
+            .into_iter()
+            .find(|r| r.get("id").and_then(|i| i.as_u64()) == Some(1))
+            .ok_or_else(|| "no id=1 response from sidecar".to_string())?;
+        let snap: AssetSnapshot =
+            serde_json::from_value(response).map_err(|e| format!("parse snapshot: {}", e))?;
+        if !snap.ok {
+            return Err("commandlet reported ok=false".to_string());
+        }
+        Ok(snap)
+    })();
+
+    if let Some(s) = staged {
+        let _ = std::fs::remove_file(s);
     }
-    Ok(snap)
+    result
+}
+
+/// Walk up from `start` looking for the nearest `*.uproject`. Returns the first
+/// one found. `start` may be a file (we begin at its parent) or a directory.
+fn find_uproject_upwards(start: &Path) -> Option<PathBuf> {
+    let mut dir = if start.is_dir() {
+        Some(start.to_path_buf())
+    } else {
+        start.parent().map(|p| p.to_path_buf())
+    };
+    for _ in 0..40 {
+        let d = dir.as_ref()?;
+        if let Ok(entries) = std::fs::read_dir(d) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.extension().map(|e| e.eq_ignore_ascii_case("uproject")).unwrap_or(false) {
+                    return Some(p);
+                }
+            }
+        }
+        dir = d.parent().map(|p| p.to_path_buf());
+    }
+    None
+}
+
+/// Resolve which UE project to open for the sidecar. To make Blueprint diffs
+/// accurate, we open the project that OWNS the conflicted asset so its C++
+/// modules, content, and referenced types all resolve. Resolution order:
+///   1. explicit override (CLI/IPC param)
+///   2. the game `.uproject` found by walking up from the asset path
+///   3. UNREAL_MERGE_HOST_PROJECT env var (manual escape hatch)
+///   4. the bundled ue-host project (fallback — degraded reference resolution)
+fn resolve_host_project(near: &Path, override_opt: Option<String>) -> PathBuf {
+    if let Some(o) = override_opt {
+        return PathBuf::from(o);
+    }
+    // Prefer the canonicalised path so the upward walk uses absolute dirs.
+    let canon = std::fs::canonicalize(near).ok();
+    let probe = canon.as_deref().unwrap_or(near);
+    if let Some(up) = find_uproject_upwards(probe) {
+        return up;
+    }
+    if let Ok(val) = std::env::var("UNREAL_MERGE_HOST_PROJECT") {
+        return PathBuf::from(val);
+    }
+    bundled_host_project()
+}
+
+/// The bundled minimal host project shipped alongside this tool. Used only as a
+/// last resort when the asset's own project can't be located.
+fn bundled_host_project() -> PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        let mut dir = exe.parent().map(|p| p.to_path_buf());
+        for _ in 0..6 {
+            if let Some(d) = &dir {
+                let candidate = d.join("ue-host").join("HostProject.uproject");
+                if candidate.exists() {
+                    return candidate;
+                }
+                dir = d.parent().map(|p| p.to_path_buf());
+            }
+        }
+    }
+    PathBuf::from("ue-host/HostProject.uproject")
 }
 
 fn default_sidecar() -> PathBuf {
@@ -259,4 +374,37 @@ pub fn close_with_exit(window: tauri::Window, code: i32) {
     // exit code Git expects (0 = resolved, 1 = abort).
     let _ = window.hide();
     std::process::exit(code);
+}
+
+#[cfg(test)]
+mod staging_tests {
+    use super::*;
+
+    #[test]
+    fn needs_staging_detects_extensions() {
+        assert!(needs_staging(Path::new(".merge_file_x9Q2")));
+        assert!(needs_staging(Path::new("/tmp/.merge_file_ABC")));
+        assert!(needs_staging(Path::new("blob")));
+        assert!(!needs_staging(Path::new("BP_Foo.uasset")));
+        assert!(!needs_staging(Path::new("Map.umap")));
+        assert!(!needs_staging(Path::new("/a/b/C.UASSET"))); // case-insensitive
+    }
+
+    #[test]
+    fn stage_as_uasset_copies_with_uasset_extension() {
+        let tmp = std::env::temp_dir();
+        let src = tmp.join(format!("unreal_merge_srctest_{}.merge_blob", std::process::id()));
+        std::fs::write(&src, b"hello-bytes").unwrap();
+
+        let staged = stage_as_uasset(&src).expect("stage");
+        assert_eq!(
+            staged.extension().and_then(|e| e.to_str()),
+            Some("uasset"),
+            "staged file must end in .uasset"
+        );
+        assert_eq!(std::fs::read(&staged).unwrap(), b"hello-bytes", "contents preserved");
+
+        let _ = std::fs::remove_file(&src);
+        let _ = std::fs::remove_file(&staged);
+    }
 }
