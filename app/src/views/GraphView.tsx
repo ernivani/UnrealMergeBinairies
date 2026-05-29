@@ -94,11 +94,8 @@ export default function GraphView({
   const onlyInOurs = oursText != null && theirsText == null;
   const onlyInTheirs = oursText == null && theirsText != null;
 
-  const splitRef = useRef<HTMLDivElement>(null);
   const oursWrapRef = useRef<HTMLDivElement>(null);
   const theirsWrapRef = useRef<HTMLDivElement>(null);
-
-  useViewportSync(splitRef, [oursText, theirsText, resultText, activeGraph]);
 
   return (
     <div className={styles.container}>
@@ -127,7 +124,7 @@ export default function GraphView({
         )}
       </div>
 
-      <div className={styles.split} ref={splitRef}>
+      <div className={styles.split}>
         <div className={styles.paneWrap} ref={oursWrapRef}>
           <GraphPane
             label="Ours"
@@ -269,60 +266,4 @@ function NodeBadges({ containerRef, guids, keepSide, selections, graphText, onPi
       })}
     </>
   );
-}
-
-// Keep the three blueprint viewports aligned: when the user pans/zooms one,
-// mirror its scroll + zoom to the others. Uses ueblueprint's element API
-// (getScroll/setScroll/zoom) defensively — no-ops if unavailable.
-function useViewportSync(splitRef: React.RefObject<HTMLDivElement | null>, deps: unknown[]) {
-  useEffect(() => {
-    const root = splitRef.current;
-    if (!root) return;
-    let raf = 0;
-    let last: { x: unknown; y: unknown; z: unknown } | null = null;
-    let applying = false;
-
-    const blueprints = () => Array.from(root.querySelectorAll("ueb-blueprint")) as any[];
-
-    function read(b: any): { x: unknown; y: unknown; z: unknown } | null {
-      try {
-        const s = typeof b.getScroll === "function" ? b.getScroll() : [b.scrollX, b.scrollY];
-        return { x: s?.[0] ?? s?.x ?? b.scrollX, y: s?.[1] ?? s?.y ?? b.scrollY, z: b.zoom };
-      } catch {
-        return null;
-      }
-    }
-    function apply(b: any, v: { x: any; y: any; z: unknown }) {
-      try {
-        if (typeof b.setScroll === "function") b.setScroll([v.x, v.y]);
-        else { b.scrollX = v.x; b.scrollY = v.y; }
-        if (b.zoom !== v.z && v.z != null) b.zoom = v.z;
-      } catch {
-        /* ignore */
-      }
-    }
-
-    function tick() {
-      const bps = blueprints();
-      if (bps.length >= 2 && !applying) {
-        // Find the pane that changed since last tick.
-        for (const b of bps) {
-          const cur = read(b);
-          if (!cur) continue;
-          if (last && (cur.x !== last.x || cur.y !== last.y || cur.z !== last.z)) {
-            applying = true;
-            for (const o of bps) if (o !== b) apply(o, cur as any);
-            applying = false;
-            last = cur;
-            break;
-          }
-          if (!last) last = cur;
-        }
-      }
-      raf = window.setTimeout(tick, 120) as unknown as number;
-    }
-    raf = window.setTimeout(tick, 500) as unknown as number;
-    return () => window.clearTimeout(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
 }
