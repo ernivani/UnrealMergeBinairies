@@ -334,12 +334,26 @@ fn resolve_host_project(near: &Path, override_opt: Option<String>) -> PathBuf {
     let canon = std::fs::canonicalize(near).ok();
     let probe = canon.as_deref().unwrap_or(near);
     if let Some(up) = find_uproject_upwards(probe) {
-        return up;
+        // canonicalize() yields a \\?\ verbatim path on Windows; UnrealEditor
+        // rejects that as its project argument and exits before logging. Hand
+        // it a plain path.
+        return PathBuf::from(strip_verbatim(&up));
     }
     if let Ok(val) = std::env::var("UNREAL_MERGE_HOST_PROJECT") {
         return PathBuf::from(val);
     }
     bundled_host_project()
+}
+
+/// Strip Windows' `\\?\` (and `\\?\UNC\`) extended-length prefix that
+/// `std::fs::canonicalize` adds — most external tools (UnrealEditor) don't
+/// accept verbatim paths.
+fn strip_verbatim(p: &Path) -> String {
+    let s = p.to_string_lossy().into_owned();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{}", rest);
+    }
+    s.strip_prefix(r"\\?\").map(str::to_string).unwrap_or(s)
 }
 
 /// The bundled minimal host project shipped alongside this tool. Used only as a
