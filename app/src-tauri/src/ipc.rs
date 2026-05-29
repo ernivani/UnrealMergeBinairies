@@ -263,6 +263,42 @@ pub fn apply_graph_merge(
 }
 
 #[tauri::command]
+pub fn apply_graph_merge_additive(
+    target_path: String,
+    dest_path: String,
+    additive_graphs: serde_json::Value,
+    sidecar_override: Option<String>,
+    host_project_override: Option<String>,
+) -> Result<(), String> {
+    let exe = sidecar_override
+        .map(PathBuf::from)
+        .unwrap_or_else(default_sidecar);
+    let host_project = resolve_host_project(Path::new(&target_path), host_project_override);
+
+    let is_ue = exe.to_string_lossy().to_lowercase().contains("unrealeditor");
+    let args = if is_ue {
+        vec![
+            host_project.display().to_string(),
+            "-run=MergeBinariesExport".to_string(),
+            "-stdio".to_string(),
+            "-nullrhi".to_string(),
+            "-unattended".to_string(),
+            "-NoCrashReports".to_string(),
+        ]
+    } else {
+        Vec::new()
+    };
+    let log_redirect = if is_ue {
+        Some(std::env::temp_dir().join(format!("unreal-merge-ipc-{}.log", std::process::id())))
+    } else {
+        None
+    };
+    let sidecar = Sidecar::new(SidecarConfig { executable: exe, args, prepend_warmup: true, log_redirect });
+
+    apply_graph_merge_additive_inner(&sidecar, Path::new(&target_path), Path::new(&dest_path), &additive_graphs)
+}
+
+#[tauri::command]
 pub fn export_asset(
     path: String,
     sidecar_override: Option<String>,
