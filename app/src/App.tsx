@@ -33,6 +33,7 @@ export default function App() {
         theirsPath={mode.theirs}
         destPath={mode.ours}
         ancestorPath={mode.ancestor}
+        targetPath={mode.path}
       />
     );
   }

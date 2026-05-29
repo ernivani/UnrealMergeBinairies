@@ -9,68 +9,24 @@
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Guid.h"
+#include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
 #include "UObject/SavePackage.h"
 
 namespace
 {
-    bool DuplicatePackageToTemp(const FString& SrcDiskPath, FString& OutTempDiskPath, UPackage*& OutPackage, FString& OutError)
-    {
-        if (!FPaths::FileExists(SrcDiskPath))
-        {
-            OutError = FString::Printf(TEXT("ancestor not found: %s"), *SrcDiskPath);
-            return false;
-        }
-
-        // Load the source package.
-        const FString PackageName = FPackageName::FilenameToLongPackageName(SrcDiskPath);
-        UPackage* SrcPackage = LoadPackage(nullptr, *PackageName, LOAD_None);
-        if (!SrcPackage)
-        {
-            OutError = FString::Printf(TEXT("LoadPackage failed for %s"), *PackageName);
-            return false;
-        }
-
-        // Build a unique temp package name + disk path.
-        const FString IntermediateDir = FPaths::ProjectIntermediateDir() / TEXT("UnrealMerge");
-        IFileManager::Get().MakeDirectory(*IntermediateDir, /*Tree=*/true);
-
-        const FString UniqueId = FGuid::NewGuid().ToString(EGuidFormats::Short);
-        const FString TempPackageName = FString::Printf(TEXT("/Temp/UnrealMerge/Merged_%s"), *UniqueId);
-        OutTempDiskPath = IntermediateDir / FString::Printf(TEXT("Merged_%s.uasset"), *UniqueId);
-
-        // Duplicate the package.
-        OutPackage = CreatePackage(*TempPackageName);
-        if (!OutPackage)
-        {
-            OutError = TEXT("CreatePackage for temp failed");
-            return false;
-        }
-
-        // Duplicate every UObject in the source package into the dest package.
-        for (TObjectIterator<UObject> It; It; ++It)
-        {
-            UObject* Obj = *It;
-            if (Obj && Obj->GetOutermost() == SrcPackage && !Obj->IsTemplate(RF_ClassDefaultObject))
-            {
-                StaticDuplicateObject(Obj, OutPackage, Obj->GetFName());
-            }
-        }
-
-        return true;
-    }
-
     UBlueprint* FindBlueprintInPackage(UPackage* Package)
     {
-        for (TObjectIterator<UBlueprint> It; It; ++It)
+        UBlueprint* Found = nullptr;
+        ForEachObjectWithOuter(Package, [&Found](UObject* It)
         {
-            if (It->GetOutermost() == Package)
+            if (!Found)
             {
-                return *It;
+                if (UBlueprint* BP = Cast<UBlueprint>(It)) { Found = BP; }
             }
-        }
-        return nullptr;
+        }, /*bIncludeNestedObjects=*/false);
+        return Found;
     }
 
     UEdGraph* FindGraphByName(UBlueprint* BP, const FString& Name)
@@ -83,38 +39,57 @@ namespace
 
     bool ReplaceGraphNodes(UEdGraph* Graph, const FString& MergedText, FString& OutError)
     {
-        // Remove all existing nodes.
         Graph->Modify();
         for (int32 i = Graph->Nodes.Num() - 1; i >= 0; --i)
         {
-            UEdGraphNode* N = Graph->Nodes[i];
-            if (N)
+            if (UEdGraphNode* N = Graph->Nodes[i])
             {
                 Graph->RemoveNode(N);
             }
         }
 
-        // Import merged nodes.
-        TSet<UEdGraphNode*> Imported;
-        FEdGraphUtilities::ImportNodesFromText(Graph, MergedText, /*out*/ Imported);
-        if (Imported.Num() == 0 && !MergedText.IsEmpty())
+        if (!MergedText.IsEmpty())
         {
-            OutError = TEXT("ImportNodesFromText produced 0 nodes");
-            return false;
+            if (!FEdGraphUtilities::CanImportNodesFromText(Graph, MergedText))
+            {
+                OutError = TEXT("CanImportNodesFromText returned false (incompatible node text for this graph)");
+                return false;
+            }
+            TSet<UEdGraphNode*> Imported;
+            FEdGraphUtilities::ImportNodesFromText(Graph, MergedText, /*out*/ Imported);
+            if (Imported.Num() == 0)
+            {
+                OutError = TEXT("ImportNodesFromText produced 0 nodes");
+                return false;
+            }
         }
         Graph->NotifyGraphChanged();
         return true;
     }
 }
 
+// Request fields:
+//   targetPath: string  — disk path of a .uasset that lives INSIDE the currently
+//                         open project's Content tree. We load it by its /Game
+//                         package name so its parent class and references fully
+//                         resolve and the saved asset keeps the correct internal
+//                         package name.
+//   mergedGraphs: { graphName: nodeText }
+//   outPath (optional): explicit destination .uasset to write; defaults to a
+//                         temp file under the project's Intermediate dir.
+// Response: { ok, mergedPath } | { ok:false, error }
 void FMergeApplier::Apply(const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonObject>& OutResponse)
 {
-    FString AncestorPath;
-    if (!Req->TryGetStringField(TEXT("path"), AncestorPath))
+    FString TargetPath;
+    if (!Req->TryGetStringField(TEXT("targetPath"), TargetPath))
     {
-        OutResponse->SetBoolField(TEXT("ok"), false);
-        OutResponse->SetStringField(TEXT("error"), TEXT("missing 'path'"));
-        return;
+        // Back-compat: older callers used "path".
+        if (!Req->TryGetStringField(TEXT("path"), TargetPath))
+        {
+            OutResponse->SetBoolField(TEXT("ok"), false);
+            OutResponse->SetStringField(TEXT("error"), TEXT("missing 'targetPath'"));
+            return;
+        }
     }
 
     const TSharedPtr<FJsonObject>* MergedGraphsObj = nullptr;
@@ -125,60 +100,88 @@ void FMergeApplier::Apply(const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonOb
         return;
     }
 
-    FString TempDiskPath;
-    UPackage* TempPackage = nullptr;
-    FString Err;
-    if (!DuplicatePackageToTemp(AncestorPath, TempDiskPath, TempPackage, Err))
+    // Map the on-disk target to its /Game long package name. This only succeeds
+    // when the file is inside the open project's mounted Content tree.
+    FString PackageName;
+    if (!FPackageName::TryConvertFilenameToLongPackageName(TargetPath, PackageName))
     {
         OutResponse->SetBoolField(TEXT("ok"), false);
-        OutResponse->SetStringField(TEXT("error"), Err);
+        OutResponse->SetStringField(TEXT("error"),
+            FString::Printf(TEXT("target is not inside the open project's Content: %s"), *TargetPath));
         return;
     }
 
-    UBlueprint* BP = FindBlueprintInPackage(TempPackage);
+    UPackage* Package = LoadPackage(nullptr, *PackageName, LOAD_None);
+    if (!Package)
+    {
+        OutResponse->SetBoolField(TEXT("ok"), false);
+        OutResponse->SetStringField(TEXT("error"),
+            FString::Printf(TEXT("LoadPackage failed for %s"), *PackageName));
+        return;
+    }
+    Package->FullyLoad();
+
+    UBlueprint* BP = FindBlueprintInPackage(Package);
     if (!BP)
     {
         OutResponse->SetBoolField(TEXT("ok"), false);
-        OutResponse->SetStringField(TEXT("error"), TEXT("no Blueprint in duplicated package"));
+        OutResponse->SetStringField(TEXT("error"),
+            FString::Printf(TEXT("no Blueprint found in package %s"), *PackageName));
         return;
     }
 
+    FString Err;
     for (const auto& Kv : (*MergedGraphsObj)->Values)
     {
         const FString& GraphName = Kv.Key;
         FString MergedText;
-        if (Kv.Value.IsValid() && Kv.Value->TryGetString(MergedText))
+        if (!Kv.Value.IsValid() || !Kv.Value->TryGetString(MergedText))
         {
-            if (UEdGraph* G = FindGraphByName(BP, GraphName))
-            {
-                if (!ReplaceGraphNodes(G, MergedText, Err))
-                {
-                    OutResponse->SetBoolField(TEXT("ok"), false);
-                    OutResponse->SetStringField(TEXT("error"),
-                        FString::Printf(TEXT("graph '%s': %s"), *GraphName, *Err));
-                    return;
-                }
-            }
-            // Graphs in the request but not on the asset are silently skipped.
+            continue;
+        }
+        UEdGraph* Graph = FindGraphByName(BP, GraphName);
+        if (!Graph)
+        {
+            OutResponse->SetBoolField(TEXT("ok"), false);
+            OutResponse->SetStringField(TEXT("error"),
+                FString::Printf(TEXT("graph '%s' not found on Blueprint"), *GraphName));
+            return;
+        }
+        if (!ReplaceGraphNodes(Graph, MergedText, Err))
+        {
+            OutResponse->SetBoolField(TEXT("ok"), false);
+            OutResponse->SetStringField(TEXT("error"),
+                FString::Printf(TEXT("graph '%s': %s"), *GraphName, *Err));
+            return;
         }
     }
 
-    // Best-effort recompile — log on failure but continue.
+    // Recompile so the generated class matches the new graphs.
     FKismetEditorUtilities::CompileBlueprint(BP, EBlueprintCompileOptions::SkipGarbageCollection);
 
-    // Save package.
+    // Choose an output path: explicit override, else a temp file under Intermediate.
+    FString OutPath;
+    if (!Req->TryGetStringField(TEXT("outPath"), OutPath) || OutPath.IsEmpty())
+    {
+        const FString IntermediateDir = FPaths::ProjectIntermediateDir() / TEXT("UnrealMerge");
+        IFileManager::Get().MakeDirectory(*IntermediateDir, /*Tree=*/true);
+        const FString UniqueId = FGuid::NewGuid().ToString(EGuidFormats::Short);
+        OutPath = IntermediateDir / FString::Printf(TEXT("Merged_%s.uasset"), *UniqueId);
+    }
+
+    // Save the package (keeps its /Game internal name) to the chosen file.
     FSavePackageArgs SaveArgs;
     SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
     SaveArgs.SaveFlags = SAVE_NoError;
     SaveArgs.Error = GError;
-    const bool bSaved = UPackage::SavePackage(TempPackage, BP, *TempDiskPath, SaveArgs);
+    const bool bSaved = UPackage::SavePackage(Package, nullptr, *OutPath, SaveArgs);
     if (!bSaved)
     {
         OutResponse->SetBoolField(TEXT("ok"), false);
-        OutResponse->SetStringField(TEXT("error"), TEXT("SavePackage failed"));
+        OutResponse->SetStringField(TEXT("error"), FString::Printf(TEXT("SavePackage failed for %s"), *OutPath));
         return;
     }
 
     OutResponse->SetBoolField(TEXT("ok"), true);
-    OutResponse->SetStringField(TEXT("mergedPath"), TempDiskPath.Replace(TEXT("\\"), TEXT("/")));
+    OutResponse->SetStringField(TEXT("mergedPath"), OutPath.Replace(TEXT("\\"), TEXT("/")));
 }

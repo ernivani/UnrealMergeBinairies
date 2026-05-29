@@ -57,13 +57,13 @@ export async function diffGraphsThreeWay(
 }
 
 export async function applyGraphMerge(
-  ancestorPath: string,
+  targetPath: string,
   destPath: string,
   mergedGraphs: Record<string, string>,
   options?: { sidecarOverride?: string; hostProjectOverride?: string },
 ): Promise<void> {
   await invoke<void>("apply_graph_merge", {
-    ancestorPath,
+    targetPath,
     destPath,
     mergedGraphs,
     sidecarOverride: options?.sidecarOverride,

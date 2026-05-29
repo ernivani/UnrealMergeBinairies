@@ -29,6 +29,12 @@ interface Props {
   destPath: string;
   /** Git's %O (merge base). When provided + asset is Blueprint, enables Take Both. */
   ancestorPath?: string;
+  /**
+   * Git's %P — the real pathname of the asset inside the project's Content tree.
+   * Take Both loads this (by its /Game name) as the base to rewrite, so the
+   * merged asset keeps the correct internal package name and resolves references.
+   */
+  targetPath?: string;
 }
 
 type Status =
@@ -46,7 +52,7 @@ type Status =
 
 type Tab = "graph" | "properties";
 
-export default function Diff({ oursPath, theirsPath, destPath, ancestorPath }: Props) {
+export default function Diff({ oursPath, theirsPath, destPath, ancestorPath, targetPath }: Props) {
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [resolving, setResolving] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("graph");
@@ -136,7 +142,8 @@ export default function Diff({ oursPath, theirsPath, destPath, ancestorPath }: P
         return;
       }
       if (kind === "both") {
-        if (status.kind !== "ready" || !status.threeWayDiffs || !status.ancestor || !ancestorPath) {
+        const target = targetPath ?? destPath;
+        if (status.kind !== "ready" || !status.threeWayDiffs || !status.ancestor) {
           throw new Error("Take Both is not available — missing ancestor or three-way diff");
         }
         const merged = buildMergedGraphs(
@@ -146,7 +153,7 @@ export default function Diff({ oursPath, theirsPath, destPath, ancestorPath }: P
           status.theirs.asset.graphs ?? {},
           selections,
         );
-        await applyGraphMerge(ancestorPath, destPath, merged);
+        await applyGraphMerge(target, destPath, merged);
         await closeWithExit(0);
         return;
       }

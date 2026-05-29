@@ -126,17 +126,26 @@ pub fn apply_resolution(
 }
 
 /// Internal: send `merge` JSON-RPC to the commandlet and copy the resulting
-/// temp .uasset over `dest`. Pure function over a `Sidecar` so we can swap
-/// in the mock for tests.
+/// temp .uasset over `dest`. `target_path` is the real asset inside the open
+/// project (loaded by its /Game name so references resolve and the saved asset
+/// keeps the correct internal package name). Pure function over a `Sidecar` so
+/// tests can swap in the mock.
 pub fn apply_graph_merge_inner(
     sidecar: &Sidecar,
-    ancestor_path: &Path,
+    target_path: &Path,
     dest: &Path,
     merged_graphs: &std::collections::HashMap<String, String>,
 ) -> Result<(), String> {
-    let abs = std::fs::canonicalize(ancestor_path)
-        .map_err(|e| format!("canonicalise {}: {}", ancestor_path.display(), e))?;
-    let ancestor_str = abs.to_string_lossy().replace('\\', "/");
+    let abs = std::fs::canonicalize(target_path)
+        .map_err(|e| format!("canonicalise {}: {}", target_path.display(), e))?;
+    let target_str = abs.to_string_lossy().replace('\\', "/");
+    // Strip Windows' \\?\ extended-length prefix (becomes //?/ after the slash
+    // swap) — UE's FPackageName::TryConvertFilenameToLongPackageName doesn't
+    // recognise it and would fail to match the mounted Content dir.
+    let target_str = target_str
+        .strip_prefix("//?/")
+        .map(str::to_string)
+        .unwrap_or(target_str);
 
     let mut graphs_json = serde_json::Map::new();
     for (k, v) in merged_graphs {
@@ -145,7 +154,7 @@ pub fn apply_graph_merge_inner(
     let req = serde_json::json!({
         "id": 1,
         "cmd": "merge",
-        "path": ancestor_str,
+        "targetPath": target_str,
         "mergedGraphs": serde_json::Value::Object(graphs_json),
     });
     let responses = sidecar.run_batch(&[req]).map_err(|e| e.to_string())?;
@@ -170,7 +179,7 @@ pub fn apply_graph_merge_inner(
 
 #[tauri::command]
 pub fn apply_graph_merge(
-    ancestor_path: String,
+    target_path: String,
     dest_path: String,
     merged_graphs: HashMap<String, String>,
     sidecar_override: Option<String>,
@@ -179,9 +188,9 @@ pub fn apply_graph_merge(
     let exe = sidecar_override
         .map(PathBuf::from)
         .unwrap_or_else(default_sidecar);
-    // Resolve the owning project from the working-tree dest path (it lives in
-    // the game's Content tree), falling back to the ancestor temp path.
-    let host_project = resolve_host_project(Path::new(&dest_path), host_project_override);
+    // The target is the real asset inside the game project; resolve the owning
+    // .uproject by walking up from it.
+    let host_project = resolve_host_project(Path::new(&target_path), host_project_override);
 
     let args = if exe.to_string_lossy().to_lowercase().contains("unrealeditor") {
         vec![
@@ -211,7 +220,7 @@ pub fn apply_graph_merge(
         log_redirect,
     });
 
-    apply_graph_merge_inner(&sidecar, Path::new(&ancestor_path), Path::new(&dest_path), &merged_graphs)
+    apply_graph_merge_inner(&sidecar, Path::new(&target_path), Path::new(&dest_path), &merged_graphs)
 }
 
 #[tauri::command]

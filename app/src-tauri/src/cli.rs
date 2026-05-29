@@ -55,6 +55,23 @@ pub enum Command {
         #[arg(long)]
         host_project: Option<PathBuf>,
     },
+    /// Apply a graph merge: rewrite a Blueprint's graphs from merged node text
+    /// and write the resulting .uasset to --out. Drives the same commandlet path
+    /// as the GUI "Take Both" button, so it can be tested headlessly.
+    Merge {
+        /// The real asset inside the project (loaded by its /Game name).
+        target: PathBuf,
+        /// JSON file mapping graphName -> merged UE node serialization text.
+        #[arg(long)]
+        graphs: PathBuf,
+        /// Where to write the merged .uasset.
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        sidecar: Option<PathBuf>,
+        #[arg(long)]
+        host_project: Option<PathBuf>,
+    },
 }
 
 pub fn run() -> Result<()> {
@@ -98,6 +115,13 @@ pub fn run() -> Result<()> {
             sidecar,
             host_project,
         }) => run_diff(&ours, &theirs, sidecar.as_deref(), host_project.as_deref()),
+        Some(Command::Merge {
+            target,
+            graphs,
+            out,
+            sidecar,
+            host_project,
+        }) => run_merge(&target, &graphs, &out, sidecar.as_deref(), host_project.as_deref()),
         None => {
             // No subcommand and no --git-driver: print help and exit 2.
             <Cli as clap::CommandFactory>::command().print_help()?;
@@ -209,6 +233,24 @@ fn run_diff(
             println!("  {:?}", d);
         }
     }
+    Ok(())
+}
+
+fn run_merge(
+    target: &std::path::Path,
+    graphs_json: &std::path::Path,
+    out: &std::path::Path,
+    sidecar_override: Option<&std::path::Path>,
+    host_project_override: Option<&std::path::Path>,
+) -> Result<()> {
+    let s = build_sidecar(sidecar_override, host_project_override);
+    let json = std::fs::read_to_string(graphs_json)
+        .with_context(|| format!("read graphs json {}", graphs_json.display()))?;
+    let graphs: std::collections::HashMap<String, String> =
+        serde_json::from_str(&json).context("parse graphs json (expected {graphName: nodeText})")?;
+    crate::ipc::apply_graph_merge_inner(&s, target, out, &graphs)
+        .map_err(|e| anyhow::anyhow!(e))?;
+    println!("merged {} -> {}", target.display(), out.display());
     Ok(())
 }
 
