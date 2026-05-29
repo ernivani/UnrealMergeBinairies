@@ -177,6 +177,45 @@ pub fn apply_graph_merge_inner(
     Ok(())
 }
 
+/// Additive merge: load ours (target) and PASTE theirs' chosen nodes per graph.
+/// `additive` is `{ graphName: { paste: text, remove: [guid,...] } }`. This is
+/// the crash-safe path (UE copy-paste) for true selective merges.
+pub fn apply_graph_merge_additive_inner(
+    sidecar: &Sidecar,
+    target_path: &Path,
+    dest: &Path,
+    additive: &serde_json::Value,
+) -> Result<(), String> {
+    let abs = std::fs::canonicalize(target_path)
+        .map_err(|e| format!("canonicalise {}: {}", target_path.display(), e))?;
+    let target_str = abs.to_string_lossy().replace('\\', "/");
+    let target_str = target_str.strip_prefix("//?/").map(str::to_string).unwrap_or(target_str);
+
+    let req = serde_json::json!({
+        "id": 1,
+        "cmd": "merge",
+        "targetPath": target_str,
+        "additiveGraphs": additive,
+    });
+    let responses = sidecar.run_batch(&[req]).map_err(|e| e.to_string())?;
+    let resp = responses
+        .into_iter()
+        .find(|r| r.get("id").and_then(|i| i.as_u64()) == Some(1))
+        .ok_or_else(|| "no id=1 response from sidecar".to_string())?;
+    if !resp.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let err = resp.get("error").and_then(|v| v.as_str()).unwrap_or("unknown error");
+        return Err(format!("commandlet merge failed: {}", err));
+    }
+    let merged_path = resp
+        .get("mergedPath")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "commandlet response missing 'mergedPath'".to_string())?;
+    let merged_pb = PathBuf::from(merged_path);
+    merge::apply_merged_file(&merged_pb, dest).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&merged_pb);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn apply_graph_merge(
     target_path: String,

@@ -66,6 +66,41 @@ namespace
         Graph->NotifyGraphChanged();
         return true;
     }
+
+    // Additive merge: keep the existing (ours) graph, remove the listed nodes,
+    // then PASTE the provided nodes in (UE's supported copy-paste path, no
+    // clear) so the importer doesn't crash the way clear+reimport-all does.
+    bool PasteNodes(UEdGraph* Graph, const FString& PasteText, const TArray<FString>& RemoveGuids, FString& OutError)
+    {
+        Graph->Modify();
+
+        if (RemoveGuids.Num() > 0)
+        {
+            TSet<FString> ToRemove;
+            for (const FString& G : RemoveGuids) { ToRemove.Add(G.ToUpper()); }
+            for (int32 i = Graph->Nodes.Num() - 1; i >= 0; --i)
+            {
+                UEdGraphNode* N = Graph->Nodes[i];
+                if (N && ToRemove.Contains(N->NodeGuid.ToString(EGuidFormats::Digits).ToUpper()))
+                {
+                    Graph->RemoveNode(N);
+                }
+            }
+        }
+
+        if (!PasteText.IsEmpty())
+        {
+            if (!FEdGraphUtilities::CanImportNodesFromText(Graph, PasteText))
+            {
+                OutError = TEXT("CanImportNodesFromText returned false for paste text");
+                return false;
+            }
+            TSet<UEdGraphNode*> Imported;
+            FEdGraphUtilities::ImportNodesFromText(Graph, PasteText, /*out*/ Imported);
+        }
+        Graph->NotifyGraphChanged();
+        return true;
+    }
 }
 
 // Request fields:
@@ -92,11 +127,17 @@ void FMergeApplier::Apply(const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonOb
         }
     }
 
+    // Two modes:
+    //  - additiveGraphs: { name: { paste: text, remove: [guid,...] } }  (preferred)
+    //  - mergedGraphs:   { name: fullText }  (legacy clear+reimport)
     const TSharedPtr<FJsonObject>* MergedGraphsObj = nullptr;
-    if (!Req->TryGetObjectField(TEXT("mergedGraphs"), MergedGraphsObj) || !MergedGraphsObj)
+    const TSharedPtr<FJsonObject>* AdditiveObj = nullptr;
+    const bool bHasMerged = Req->TryGetObjectField(TEXT("mergedGraphs"), MergedGraphsObj) && MergedGraphsObj;
+    const bool bHasAdditive = Req->TryGetObjectField(TEXT("additiveGraphs"), AdditiveObj) && AdditiveObj;
+    if (!bHasMerged && !bHasAdditive)
     {
         OutResponse->SetBoolField(TEXT("ok"), false);
-        OutResponse->SetStringField(TEXT("error"), TEXT("missing 'mergedGraphs'"));
+        OutResponse->SetStringField(TEXT("error"), TEXT("missing 'additiveGraphs' or 'mergedGraphs'"));
         return;
     }
 
@@ -131,28 +172,58 @@ void FMergeApplier::Apply(const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonOb
     }
 
     FString Err;
-    for (const auto& Kv : (*MergedGraphsObj)->Values)
+    if (bHasAdditive)
     {
-        const FString& GraphName = Kv.Key;
-        FString MergedText;
-        if (!Kv.Value.IsValid() || !Kv.Value->TryGetString(MergedText))
+        for (const auto& Kv : (*AdditiveObj)->Values)
         {
-            continue;
+            const FString& GraphName = Kv.Key;
+            const TSharedPtr<FJsonObject>* Spec = nullptr;
+            if (!Kv.Value.IsValid() || !Kv.Value->TryGetObject(Spec) || !Spec) { continue; }
+            FString Paste;
+            (*Spec)->TryGetStringField(TEXT("paste"), Paste);
+            TArray<FString> Remove;
+            const TArray<TSharedPtr<FJsonValue>>* RemArr = nullptr;
+            if ((*Spec)->TryGetArrayField(TEXT("remove"), RemArr) && RemArr)
+            {
+                for (const TSharedPtr<FJsonValue>& V : *RemArr) { FString S; if (V->TryGetString(S)) { Remove.Add(S); } }
+            }
+            UEdGraph* Graph = FindGraphByName(BP, GraphName);
+            if (!Graph)
+            {
+                OutResponse->SetBoolField(TEXT("ok"), false);
+                OutResponse->SetStringField(TEXT("error"), FString::Printf(TEXT("graph '%s' not found"), *GraphName));
+                return;
+            }
+            if (!PasteNodes(Graph, Paste, Remove, Err))
+            {
+                OutResponse->SetBoolField(TEXT("ok"), false);
+                OutResponse->SetStringField(TEXT("error"), FString::Printf(TEXT("graph '%s': %s"), *GraphName, *Err));
+                return;
+            }
         }
-        UEdGraph* Graph = FindGraphByName(BP, GraphName);
-        if (!Graph)
+    }
+    else
+    {
+        for (const auto& Kv : (*MergedGraphsObj)->Values)
         {
-            OutResponse->SetBoolField(TEXT("ok"), false);
-            OutResponse->SetStringField(TEXT("error"),
-                FString::Printf(TEXT("graph '%s' not found on Blueprint"), *GraphName));
-            return;
-        }
-        if (!ReplaceGraphNodes(Graph, MergedText, Err))
-        {
-            OutResponse->SetBoolField(TEXT("ok"), false);
-            OutResponse->SetStringField(TEXT("error"),
-                FString::Printf(TEXT("graph '%s': %s"), *GraphName, *Err));
-            return;
+            const FString& GraphName = Kv.Key;
+            FString MergedText;
+            if (!Kv.Value.IsValid() || !Kv.Value->TryGetString(MergedText)) { continue; }
+            UEdGraph* Graph = FindGraphByName(BP, GraphName);
+            if (!Graph)
+            {
+                OutResponse->SetBoolField(TEXT("ok"), false);
+                OutResponse->SetStringField(TEXT("error"),
+                    FString::Printf(TEXT("graph '%s' not found on Blueprint"), *GraphName));
+                return;
+            }
+            if (!ReplaceGraphNodes(Graph, MergedText, Err))
+            {
+                OutResponse->SetBoolField(TEXT("ok"), false);
+                OutResponse->SetStringField(TEXT("error"),
+                    FString::Printf(TEXT("graph '%s': %s"), *GraphName, *Err));
+                return;
+            }
         }
     }
 

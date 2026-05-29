@@ -61,12 +61,16 @@ pub enum Command {
     Merge {
         /// The real asset inside the project (loaded by its /Game name).
         target: PathBuf,
-        /// JSON file mapping graphName -> merged UE node serialization text.
+        /// JSON file. Without --additive: { graphName: fullText }. With
+        /// --additive: { graphName: { paste: text, remove: [guid,...] } }.
         #[arg(long)]
         graphs: PathBuf,
         /// Where to write the merged .uasset.
         #[arg(long)]
         out: PathBuf,
+        /// Use the additive paste merge (load ours, paste theirs' nodes).
+        #[arg(long)]
+        additive: bool,
         #[arg(long)]
         sidecar: Option<PathBuf>,
         #[arg(long)]
@@ -119,9 +123,10 @@ pub fn run() -> Result<()> {
             target,
             graphs,
             out,
+            additive,
             sidecar,
             host_project,
-        }) => run_merge(&target, &graphs, &out, sidecar.as_deref(), host_project.as_deref()),
+        }) => run_merge(&target, &graphs, &out, additive, sidecar.as_deref(), host_project.as_deref()),
         None => {
             // No subcommand and no --git-driver: print help and exit 2.
             <Cli as clap::CommandFactory>::command().print_help()?;
@@ -240,16 +245,24 @@ fn run_merge(
     target: &std::path::Path,
     graphs_json: &std::path::Path,
     out: &std::path::Path,
+    additive: bool,
     sidecar_override: Option<&std::path::Path>,
     host_project_override: Option<&std::path::Path>,
 ) -> Result<()> {
     let s = build_sidecar(sidecar_override, host_project_override);
     let json = std::fs::read_to_string(graphs_json)
         .with_context(|| format!("read graphs json {}", graphs_json.display()))?;
-    let graphs: std::collections::HashMap<String, String> =
-        serde_json::from_str(&json).context("parse graphs json (expected {graphName: nodeText})")?;
-    crate::ipc::apply_graph_merge_inner(&s, target, out, &graphs)
-        .map_err(|e| anyhow::anyhow!(e))?;
+    if additive {
+        let value: serde_json::Value =
+            serde_json::from_str(&json).context("parse additive graphs json")?;
+        crate::ipc::apply_graph_merge_additive_inner(&s, target, out, &value)
+            .map_err(|e| anyhow::anyhow!(e))?;
+    } else {
+        let graphs: std::collections::HashMap<String, String> =
+            serde_json::from_str(&json).context("parse graphs json (expected {graphName: nodeText})")?;
+        crate::ipc::apply_graph_merge_inner(&s, target, out, &graphs)
+            .map_err(|e| anyhow::anyhow!(e))?;
+    }
     println!("merged {} -> {}", target.display(), out.display());
     Ok(())
 }
