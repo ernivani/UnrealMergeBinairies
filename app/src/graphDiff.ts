@@ -34,11 +34,14 @@ export function applyDiffOverlay(
 import type { MergeSide, ThreeWayGraphDiff, ThreeWayNodeStatus } from "./types";
 import { isConflictStatus } from "./types";
 
+export type PaneSide = "ours" | "theirs" | "result";
+
 export function applyThreeWayOverlay(
   container: HTMLElement,
   diff: ThreeWayGraphDiff,
-  side: "ours" | "theirs",
+  side: PaneSide,
   selections: Map<string, MergeSide>,
+  common: Set<string>,
 ): void {
   const nodeEls = container.querySelectorAll("ueb-node");
   nodeEls.forEach((el) => {
@@ -52,10 +55,23 @@ export function applyThreeWayOverlay(
       "uem-three-way-modified",
       "uem-three-way-conflict",
       "uem-three-way-dimmed",
+      "uem-common",
     );
 
+    // Nodes identical on both sides ("agreed/common") recede so real
+    // differences stand out. They are never conflicts.
+    if (common.has(guid)) {
+      nodeEl.classList.add("uem-common");
+      return;
+    }
+
     const status: ThreeWayNodeStatus | undefined = diff.nodeStatuses[guid];
-    if (!status || status === "unchanged" || status === "removedInBoth") return;
+    if (!status || status === "unchanged" || status === "removedInBoth") {
+      // Present here but not a tracked change (e.g. unchanged on this side) —
+      // treat as common-ish.
+      nodeEl.classList.add("uem-common");
+      return;
+    }
 
     if (isConflictStatus(status)) {
       nodeEl.classList.add("uem-three-way-conflict");
@@ -67,14 +83,17 @@ export function applyThreeWayOverlay(
       nodeEl.classList.add("uem-three-way-modified");
     }
 
-    // Dim nodes the user did NOT pick for this side.
-    const chosen = selections.get(guid);
-    if (chosen === "skip") {
-      nodeEl.classList.add("uem-three-way-dimmed");
-    } else if (chosen === "ours" && side === "theirs") {
-      nodeEl.classList.add("uem-three-way-dimmed");
-    } else if (chosen === "theirs" && side === "ours") {
-      nodeEl.classList.add("uem-three-way-dimmed");
+    // On the side panes, dim nodes the user did NOT pick (the result pane only
+    // ever contains the chosen version, so no dimming there).
+    if (side !== "result") {
+      const chosen = selections.get(guid);
+      if (chosen === "skip") {
+        nodeEl.classList.add("uem-three-way-dimmed");
+      } else if (chosen === "ours" && side === "theirs") {
+        nodeEl.classList.add("uem-three-way-dimmed");
+      } else if (chosen === "theirs" && side === "ours") {
+        nodeEl.classList.add("uem-three-way-dimmed");
+      }
     }
   });
 }

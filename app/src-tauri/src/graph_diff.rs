@@ -101,7 +101,7 @@ pub fn diff_graphs_three_way_inner(
                 (None, None, Some(_)) => ThreeWayNodeStatus::AddedInTheirs,
                 // added by both
                 (None, Some(o_b), Some(t_b)) => {
-                    if o_b == t_b {
+                    if blob_eq(o_b, t_b) {
                         ThreeWayNodeStatus::AddedInBoth
                     } else {
                         ThreeWayNodeStatus::AddedInBothConflict
@@ -111,7 +111,7 @@ pub fn diff_graphs_three_way_inner(
                 (Some(_), Some(_), None) => {
                     let o_b = o.unwrap();
                     let a_b = a.unwrap();
-                    if o_b == a_b {
+                    if blob_eq(o_b, a_b) {
                         // ours unchanged, theirs deleted → just removed in theirs
                         ThreeWayNodeStatus::RemovedInTheirs
                     } else {
@@ -121,7 +121,7 @@ pub fn diff_graphs_three_way_inner(
                 (Some(_), None, Some(_)) => {
                     let t_b = t.unwrap();
                     let a_b = a.unwrap();
-                    if t_b == a_b {
+                    if blob_eq(t_b, a_b) {
                         ThreeWayNodeStatus::RemovedInOurs
                     } else {
                         ThreeWayNodeStatus::ModifyDeleteConflict
@@ -129,9 +129,9 @@ pub fn diff_graphs_three_way_inner(
                 }
                 // present everywhere
                 (Some(a_b), Some(o_b), Some(t_b)) => {
-                    let o_eq_a = o_b == a_b;
-                    let t_eq_a = t_b == a_b;
-                    let o_eq_t = o_b == t_b;
+                    let o_eq_a = blob_eq(o_b, a_b);
+                    let t_eq_a = blob_eq(t_b, a_b);
+                    let o_eq_t = blob_eq(o_b, t_b);
                     if o_eq_a && t_eq_a {
                         ThreeWayNodeStatus::Unchanged
                     } else if o_eq_a {
@@ -158,6 +158,31 @@ pub fn diff_graphs_three_way_inner(
         });
     }
     result
+}
+
+// Canonicalise a node blob for *semantic* comparison: drop purely cosmetic
+// fields so a node that merely moved on the canvas (UE rewrites NodePosX/NodePosY
+// whenever either side edits the graph) isn't reported as changed/conflicting.
+// Trims each line and drops blank lines so whitespace/line-ending differences
+// don't matter either.
+fn normalize_blob(blob: &str) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    for line in blob.lines() {
+        let t = line.trim();
+        if t.is_empty() {
+            continue;
+        }
+        if t.starts_with("NodePosX=") || t.starts_with("NodePosY=") {
+            continue;
+        }
+        out.push(t);
+    }
+    out.join("\n")
+}
+
+// Semantic equality of two node blobs (ignores cosmetic position/whitespace).
+fn blob_eq(a: &str, b: &str) -> bool {
+    normalize_blob(a) == normalize_blob(b)
 }
 
 // Splits UE serialization text into per-node blobs keyed by NodeGuid.
@@ -229,9 +254,9 @@ pub fn diff_graphs_inner(
 
         for (guid, ours_blob) in &ours_nodes {
             if let Some(theirs_blob) = theirs_nodes.get(guid) {
-                // Text equality includes whitespace; re-serialized-but-semantically-equal
-                // nodes may report Changed if indentation or line endings differ.
-                if ours_blob == theirs_blob {
+                // Compare semantically — ignore cosmetic NodePos/whitespace so a
+                // node that only moved isn't reported as Changed.
+                if blob_eq(ours_blob, theirs_blob) {
                     node_statuses.insert(guid.clone(), NodeStatus::Unchanged);
                 } else {
                     node_statuses.insert(guid.clone(), NodeStatus::Changed);
@@ -272,10 +297,20 @@ Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
 End Object
 ";
 
+    // Semantically different from NODE_A (extra NodeComment), NOT just moved.
     const NODE_A_CHANGED: &str = "\
 Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
    NodeGuid=AAAAAAAA000000000000000000000001
-   NodePosX=200
+   NodePosX=100
+   NodeComment=\"ours\"
+End Object
+";
+
+    // Same node moved only (NodePosX differs) — must compare equal to NODE_A.
+    const NODE_A_MOVED: &str = "\
+Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
+   NodeGuid=AAAAAAAA000000000000000000000001
+   NodePosX=999
 End Object
 ";
 
@@ -300,6 +335,30 @@ End Object
             diff.node_statuses.get("AAAAAAAA000000000000000000000001"),
             Some(&NodeStatus::Unchanged)
         );
+    }
+
+    #[test]
+    fn position_only_change_is_unchanged() {
+        // A node that only moved (different NodePosX) must NOT be reported as
+        // changed — UE rewrites positions whenever either side edits the graph.
+        let ours = make_graphs(&[("EventGraph", NODE_A)]);
+        let theirs = make_graphs(&[("EventGraph", NODE_A_MOVED)]);
+        let diffs = diff_graphs_inner(&ours, &theirs);
+        assert_eq!(
+            diffs[0].node_statuses.get("AAAAAAAA000000000000000000000001"),
+            Some(&NodeStatus::Unchanged)
+        );
+    }
+
+    #[test]
+    fn three_way_position_only_change_is_unchanged() {
+        let s = three_way_status(
+            &[("EventGraph", NODE_A)],
+            &[("EventGraph", NODE_A_MOVED)],
+            &[("EventGraph", NODE_A)],
+            "AAAAAAAA000000000000000000000001",
+        );
+        assert_eq!(s, Some(ThreeWayNodeStatus::Unchanged));
     }
 
     #[test]
@@ -371,7 +430,8 @@ Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
    Begin Object Name=\"SubPin_0\"
       PinName=\"execute\"
    End Object
-   NodePosX=200
+   NodePosX=100
+   NodeComment=\"changed\"
 End Object
 ";
 
@@ -389,10 +449,12 @@ End Object
         );
     }
 
+    // A different semantic change than NODE_A_CHANGED (different comment).
     const NODE_A_V2: &str = "\
 Begin Object Class=/Script/BlueprintGraph.K2Node_Event Name=\"K2Node_Event_0\"
    NodeGuid=AAAAAAAA000000000000000000000001
-   NodePosX=300
+   NodePosX=100
+   NodeComment=\"theirs\"
 End Object
 ";
 
@@ -552,11 +614,13 @@ End Object
 
     #[test]
     fn three_way_added_in_both_conflict() {
-        // Two different node blobs that share the same GUID (rare in practice
-        // but the algorithm should flag them as a conflict).
+        // Two SEMANTICALLY different node blobs that share the same GUID (rare
+        // but the algorithm should flag them as a conflict). Differ by a real
+        // field (NodeComment), not just position.
         let other_b = "Begin Object Class=/Script/BlueprintGraph.K2Node_CallFunction Name=\"K2Node_CallFunction_0\"
    NodeGuid=BBBBBBBB000000000000000000000002
-   NodePosX=999
+   NodePosX=300
+   NodeComment=\"theirs\"
 End Object
 ";
         let s = three_way_status(

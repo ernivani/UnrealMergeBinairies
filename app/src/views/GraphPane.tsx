@@ -1,20 +1,22 @@
 import { useEffect, useRef } from "react";
 import type { GraphDiff, MergeSide, ThreeWayGraphDiff } from "../types";
-import { applyDiffOverlay, applyThreeWayOverlay } from "../graphDiff";
+import { applyDiffOverlay, applyThreeWayOverlay, type PaneSide } from "../graphDiff";
 import styles from "./GraphPane.module.css";
 
 interface Props {
   label: string;
-  side: "ours" | "theirs";
+  side: PaneSide;
   graphText: string | undefined;
   diff: GraphDiff | undefined;
   threeWayDiff?: ThreeWayGraphDiff;
   selections?: Map<string, MergeSide>;
+  /** GUIDs identical on both sides — dimmed as "common/agreed". */
+  common?: Set<string>;
   /** GUID of the node to flash/outline (set when a Result row is clicked). */
   selectedGuid?: string;
 }
 
-export default function GraphPane({ label, side, graphText, diff, threeWayDiff, selections, selectedGuid }: Props) {
+export default function GraphPane({ label, side, graphText, diff, threeWayDiff, selections, common, selectedGuid }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,8 +48,8 @@ export default function GraphPane({ label, side, graphText, diff, threeWayDiff, 
         observer.disconnect();
         rafId = requestAnimationFrame(() => {
           if (threeWayDiff) {
-            applyThreeWayOverlay(canvas, threeWayDiff, side, selections ?? new Map());
-          } else if (diff) {
+            applyThreeWayOverlay(canvas, threeWayDiff, side, selections ?? new Map(), common ?? new Set());
+          } else if (diff && side !== "result") {
             applyDiffOverlay(canvas, diff, side);
           }
         });
@@ -60,7 +62,7 @@ export default function GraphPane({ label, side, graphText, diff, threeWayDiff, 
       if (rafId !== undefined) cancelAnimationFrame(rafId);
       canvas.innerHTML = "";
     };
-  }, [graphText, diff, threeWayDiff, selections, side]);
+  }, [graphText, diff, threeWayDiff, selections, common, side]);
 
   // Flash/outline the node selected in the Result panel. Separate effect so it
   // toggles without re-rendering the (expensive) blueprint canvas.

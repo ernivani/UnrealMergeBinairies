@@ -43,6 +43,30 @@ export function parseNodeBlobs(text: string): Map<string, string> {
   return result;
 }
 
+// Canonicalise a node blob for semantic comparison — mirrors Rust
+// graph_diff::normalize_blob. Drops cosmetic NodePosX/NodePosY (UE rewrites
+// these on any edit) and whitespace so a node that only moved compares equal.
+export function normalizeBlob(blob: string): string {
+  return blob
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("NodePosX=") && !l.startsWith("NodePosY="))
+    .join("\n");
+}
+
+// GUIDs whose node is identical (semantically) in both ours and theirs — i.e.
+// "agreed / common" nodes. These are dimmed in the UI so real differences pop.
+export function commonGuids(oursText?: string, theirsText?: string): Set<string> {
+  const o = parseNodeBlobs(oursText ?? "");
+  const t = parseNodeBlobs(theirsText ?? "");
+  const set = new Set<string>();
+  for (const [guid, ob] of o) {
+    const tb = t.get(guid);
+    if (tb && normalizeBlob(ob) === normalizeBlob(tb)) set.add(guid);
+  }
+  return set;
+}
+
 // Default per-GUID merge selection given a status.
 //   - non-conflict modifications/additions auto-pick the side that changed
 //   - conflicts default to "ours"
