@@ -97,6 +97,14 @@ namespace
             }
             TSet<UEdGraphNode*> Imported;
             FEdGraphUtilities::ImportNodesFromText(Graph, PasteText, /*out*/ Imported);
+            // Re-resolve each pasted node from its current connections. Wildcard
+            // pins (e.g. a For Each Loop's Array input) only take a concrete type
+            // from what they're wired to; without this they fall back to the
+            // generic Object type and fail to compile against an Actor array.
+            for (UEdGraphNode* N : Imported)
+            {
+                if (N) { N->ReconstructNode(); }
+            }
         }
         Graph->NotifyGraphChanged();
         return true;
@@ -225,6 +233,35 @@ void FMergeApplier::Apply(const TSharedPtr<FJsonObject>& Req, TSharedRef<FJsonOb
                 return;
             }
         }
+    }
+
+    // Re-resolve every node (wildcard pins, macro expansions, dependent types)
+    // from their connections before compiling, so links established by the merge
+    // get their concrete types instead of failing as generic Object.
+    FBlueprintEditorUtils::RefreshAllNodes(BP);
+
+    // Wildcard pins (e.g. a For Each Loop's Array) only take their concrete type
+    // when the connection is announced via NotifyPinConnectionListChanged. A
+    // pasted/serialized link doesn't fire that, so do it explicitly for every
+    // connected pin in every graph, then reconstruct again so types settle.
+    {
+        TArray<UEdGraph*> AllGraphs;
+        AllGraphs.Append(BP->UbergraphPages);
+        AllGraphs.Append(BP->FunctionGraphs);
+        AllGraphs.Append(BP->MacroGraphs);
+        for (UEdGraph* G : AllGraphs)
+        {
+            if (!G) { continue; }
+            for (UEdGraphNode* N : G->Nodes)
+            {
+                if (!N) { continue; }
+                for (UEdGraphPin* P : N->Pins)
+                {
+                    if (P && P->LinkedTo.Num() > 0) { N->PinConnectionListChanged(P); }
+                }
+            }
+        }
+        FBlueprintEditorUtils::RefreshAllNodes(BP);
     }
 
     // Recompile so the generated class matches the new graphs.
