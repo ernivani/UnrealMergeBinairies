@@ -83,10 +83,13 @@ export function applyThreeWayOverlay(
       nodeEl.classList.add("uem-three-way-modified");
     }
 
-    // On the side panes, dim nodes the user did NOT pick (the result pane only
-    // ever contains the chosen version, so no dimming there).
-    if (side !== "result") {
-      const chosen = selections.get(guid);
+    const chosen = selections.get(guid);
+    if (side === "result") {
+      // The middle is built once from defaults; reflect a Drop by dimming the
+      // node here (no rebuild) so the preview tracks Keep/Drop live.
+      if (chosen === "skip") nodeEl.classList.add("uem-three-way-dimmed");
+    } else {
+      // Side panes: dim nodes the user did NOT pick for this side.
       if (chosen === "skip") {
         nodeEl.classList.add("uem-three-way-dimmed");
       } else if (chosen === "ours" && side === "theirs") {

@@ -68,6 +68,10 @@ export default function GraphView({
     [threeWayMode, oursText, theirsText],
   );
 
+  // Build the middle result ONCE from the default merge (empty selection map ->
+  // per-status defaults). It must NOT depend on `selections`, or every pick
+  // would re-stitch the text and reload the whole middle DOM. Keep/Drop is
+  // reflected by dimming dropped nodes in the result overlay instead.
   const resultText = useMemo(() => {
     if (!threeWayMode || !threeWayDiffs) return undefined;
     const merged = buildMergedGraphs(
@@ -75,10 +79,10 @@ export default function GraphView({
       ancestor?.asset.graphs ?? {},
       ours.asset.graphs ?? {},
       theirs.asset.graphs ?? {},
-      selections ?? new Map(),
+      new Map(),
     );
     return merged[activeGraph];
-  }, [threeWayMode, threeWayDiffs, ancestor, ours, theirs, selections, activeGraph]);
+  }, [threeWayMode, threeWayDiffs, ancestor, ours, theirs, activeGraph]);
 
   // Per-side change sets: nodes present on that side that aren't unchanged/common.
   const oursChangeGuids = useMemo(() => changeGuids(oursText, activeThreeWayDiff, common), [oursText, activeThreeWayDiff, common]);
