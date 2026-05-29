@@ -80,6 +80,37 @@
   border-right: 2px solid rgba(0, 137, 255, 0.8);
 }
 
+/* Prominent banner when a graph was edited on both sides. */
+.conflictBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(211, 106, 192, 0.14);
+  border-top: 1px solid rgba(211, 106, 192, 0.5);
+  border-bottom: 1px solid rgba(211, 106, 192, 0.5);
+  flex-shrink: 0;
+}
+.conflictBannerText {
+  flex: 1;
+  font-size: 12px;
+  color: #e7b3dc;
+}
+.bannerBtn {
+  background: var(--ue-bg-raised);
+  border: 1px solid var(--ue-border);
+  color: var(--ue-text);
+  padding: 5px 16px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.bannerBtn:hover { border-color: var(--ue-border-strong); }
+.bannerOurs { background: rgba(196, 69, 69, 0.9); border-color: rgba(196, 69, 69, 1); color: #fff; }
+.bannerTheirs { background: rgba(0, 137, 255, 0.9); border-color: rgba(0, 137, 255, 1); color: #fff; }
+
 /* Per-graph conflict resolver in the toolbar (graph both sides edited). */
 .graphConflict {
   display: inline-flex;

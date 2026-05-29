@@ -127,6 +127,27 @@ export default function GraphView({
         )}
       </div>
 
+      {threeWayMode && change === "both" && onSelectionChange && (
+        <div className={styles.conflictBanner}>
+          <span className={styles.conflictBannerText}>
+            ⚠ <b>{activeGraph}</b> was edited on <b>both</b> sides. Choose which version to keep —
+            the middle shows your choice:
+          </span>
+          <button
+            className={`${styles.bannerBtn} ${winner === "ours" ? styles.bannerOurs : ""}`}
+            onClick={() => onSelectionChange(activeGraph, "ours")}
+          >
+            Keep Ours
+          </button>
+          <button
+            className={`${styles.bannerBtn} ${winner === "theirs" ? styles.bannerTheirs : ""}`}
+            onClick={() => onSelectionChange(activeGraph, "theirs")}
+          >
+            Keep Theirs
+          </button>
+        </div>
+      )}
+
       <div className={styles.split}>
         <GraphPane
           label="Ours"
