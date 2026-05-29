@@ -64,12 +64,15 @@
   min-height: 0;
 }
 
-/* Side pane wrapper — holds a GraphPane plus its floating Keep/Drop badges. */
+/* Side pane wrapper - holds a GraphPane plus its floating Keep/Drop badges.
+   overflow:hidden clips badges so an off-screen node's badge can't bleed onto
+   the neighbouring pane. */
 .paneWrap {
   position: relative;
   flex: 1;
   display: flex;
   min-width: 0;
+  overflow: hidden;
 }
 
 .hint {

@@ -226,7 +226,12 @@ function NodeBadges({ containerRef, guids, keepSide, selections, graphText, onPi
         const guid = nodeEl.entity?.NodeGuid?.toString();
         if (!guid || !guids.includes(guid)) return;
         const r = el.getBoundingClientRect();
-        next.push({ guid, top: r.top - base.top, left: r.left - base.left + r.width / 2 - 32 });
+        // Only show the badge when the node is actually visible inside this
+        // pane — otherwise an off-screen node's badge bleeds onto neighbours.
+        const cx = r.left + r.width / 2;
+        const cy = r.top + r.height / 2;
+        if (cx < base.left || cx > base.right || cy < base.top || cy > base.bottom) return;
+        next.push({ guid, top: cy - base.top - 11, left: cx - base.left - 32 });
       });
       setPositions(next);
     }
