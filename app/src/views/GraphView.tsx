@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type {
-  AssetSnapshot,
-  GraphDiff,
-  MergeSide,
-  ThreeWayGraphDiff,
-  ThreeWayNodeStatus,
-} from "../types";
-import { isConflictStatus } from "../types";
-import { buildMergedGraphs, commonGuids, defaultSide } from "../mergeGraphs";
+import type { AssetSnapshot, GraphDiff, MergeSide, ThreeWayGraphDiff } from "../types";
+import { buildMergedGraphs, commonGuids, parseNodeBlobs } from "../mergeGraphs";
 import GraphPane from "./GraphPane";
 import styles from "./GraphView.module.css";
 
@@ -15,10 +8,8 @@ interface Props {
   ours: AssetSnapshot;
   theirs: AssetSnapshot;
   graphDiffs: GraphDiff[];
-  /** Optional ancestor. When present, GraphView enters three-way mode. */
   ancestor?: AssetSnapshot;
   threeWayDiffs?: ThreeWayGraphDiff[];
-  /** Per-graph per-GUID selection state, owned by Diff.tsx. */
   selections?: Map<string, Map<string, MergeSide>>;
   onSelectionChange?: (graphName: string, guid: string, side: MergeSide) => void;
 }
@@ -77,7 +68,6 @@ export default function GraphView({
     [threeWayMode, oursText, theirsText],
   );
 
-  // Live merged "result" graph, rebuilt whenever a node pick changes.
   const resultText = useMemo(() => {
     if (!threeWayMode || !threeWayDiffs) return undefined;
     const merged = buildMergedGraphs(
@@ -90,18 +80,25 @@ export default function GraphView({
     return merged[activeGraph];
   }, [threeWayMode, threeWayDiffs, ancestor, ours, theirs, selections, activeGraph]);
 
-  // Real conflicts = conflict status and not common/agreed.
-  const conflictGuids = useMemo(() => {
-    if (!activeThreeWayDiff) return [] as string[];
-    return Object.entries(activeThreeWayDiff.nodeStatuses)
-      .filter(([guid, s]) => isConflictStatus(s as ThreeWayNodeStatus) && !common.has(guid))
-      .map(([guid]) => guid);
-  }, [activeThreeWayDiff, common]);
+  // Per-side change sets: nodes present on that side that aren't unchanged/common.
+  const oursChangeGuids = useMemo(() => changeGuids(oursText, activeThreeWayDiff, common), [oursText, activeThreeWayDiff, common]);
+  const theirsChangeGuids = useMemo(() => changeGuids(theirsText, activeThreeWayDiff, common), [theirsText, activeThreeWayDiff, common]);
+
+  const conflictCount = useMemo(() => {
+    if (!activeThreeWayDiff) return 0;
+    return Object.values(activeThreeWayDiff.nodeStatuses).filter(
+      (s) => s === "modifiedInBoth" || s === "addedInBothConflict" || s === "modifyDeleteConflict",
+    ).length;
+  }, [activeThreeWayDiff]);
 
   const onlyInOurs = oursText != null && theirsText == null;
   const onlyInTheirs = oursText == null && theirsText != null;
 
-  const resultWrapRef = useRef<HTMLDivElement>(null);
+  const splitRef = useRef<HTMLDivElement>(null);
+  const oursWrapRef = useRef<HTMLDivElement>(null);
+  const theirsWrapRef = useRef<HTMLDivElement>(null);
+
+  useViewportSync(splitRef, [oursText, theirsText, resultText, activeGraph]);
 
   return (
     <div className={styles.container}>
@@ -120,28 +117,41 @@ export default function GraphView({
         </select>
         {onlyInOurs && <span className={`${styles.badge} ${styles.badgeOurs}`}>only in Ours</span>}
         {onlyInTheirs && <span className={`${styles.badge} ${styles.badgeTheirs}`}>only in Theirs</span>}
-        {activeThreeWayDiff && (
-          <span className={`${styles.conflictSummary} ${conflictGuids.length === 0 ? styles.noConflicts : ""}`}>
-            {conflictGuids.length === 0
-              ? "no conflicts"
-              : `${conflictGuids.length} conflict${conflictGuids.length === 1 ? "" : "s"} (pick on the middle nodes)`}
+        {threeWayMode && (
+          <span className={styles.hint}>
+            {oursChangeGuids.length + theirsChangeGuids.length} changed node
+            {oursChangeGuids.length + theirsChangeGuids.length === 1 ? "" : "s"}
+            {conflictCount > 0 ? ` (${conflictCount} conflict${conflictCount === 1 ? "" : "s"})` : ""}
+            {" · Keep/Drop on each side"}
           </span>
         )}
       </div>
 
-      <div className={styles.split}>
-        <GraphPane
-          label="Ours"
-          side="ours"
-          graphText={oursText}
-          diff={threeWayMode ? undefined : activeDiff}
-          threeWayDiff={activeThreeWayDiff}
-          selections={activeSelections}
-          common={common}
-        />
+      <div className={styles.split} ref={splitRef}>
+        <div className={styles.paneWrap} ref={oursWrapRef}>
+          <GraphPane
+            label="Ours"
+            side="ours"
+            graphText={oursText}
+            diff={threeWayMode ? undefined : activeDiff}
+            threeWayDiff={activeThreeWayDiff}
+            selections={activeSelections}
+            common={common}
+          />
+          {threeWayMode && (
+            <NodeBadges
+              containerRef={oursWrapRef}
+              guids={oursChangeGuids}
+              keepSide="ours"
+              selections={activeSelections}
+              graphText={oursText}
+              onPick={(guid, side) => onSelectionChange!(activeGraph, guid, side)}
+            />
+          )}
+        </div>
 
-        {threeWayMode && activeThreeWayDiff && (
-          <div className={styles.resultWrap} ref={resultWrapRef}>
+        {threeWayMode && (
+          <div className={styles.resultWrap}>
             <GraphPane
               label="Result (merged)"
               side="result"
@@ -151,47 +161,61 @@ export default function GraphView({
               selections={activeSelections}
               common={common}
             />
-            <ConflictBadges
-              containerRef={resultWrapRef}
-              conflictGuids={conflictGuids}
-              selections={activeSelections}
-              statuses={activeThreeWayDiff.nodeStatuses}
-              graphText={resultText}
-              onPick={(guid, side) => onSelectionChange!(activeGraph, guid, side)}
-            />
           </div>
         )}
 
-        <GraphPane
-          label="Theirs"
-          side="theirs"
-          graphText={theirsText}
-          diff={threeWayMode ? undefined : activeDiff}
-          threeWayDiff={activeThreeWayDiff}
-          selections={activeSelections}
-          common={common}
-        />
+        <div className={styles.paneWrap} ref={theirsWrapRef}>
+          <GraphPane
+            label="Theirs"
+            side="theirs"
+            graphText={theirsText}
+            diff={threeWayMode ? undefined : activeDiff}
+            threeWayDiff={activeThreeWayDiff}
+            selections={activeSelections}
+            common={common}
+          />
+          {threeWayMode && (
+            <NodeBadges
+              containerRef={theirsWrapRef}
+              guids={theirsChangeGuids}
+              keepSide="theirs"
+              selections={activeSelections}
+              graphText={theirsText}
+              onPick={(guid, side) => onSelectionChange!(activeGraph, guid, side)}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
+// Guids present on a side's graph that are changed (not unchanged, not common).
+function changeGuids(text: string | undefined, diff: ThreeWayGraphDiff | undefined, common: Set<string>): string[] {
+  if (!text || !diff) return [];
+  const present = new Set(parseNodeBlobs(text).keys());
+  return Object.entries(diff.nodeStatuses)
+    .filter(([guid, s]) => present.has(guid) && s !== "unchanged" && s !== "removedInBoth" && !common.has(guid))
+    .map(([guid]) => guid);
+}
+
 interface BadgesProps {
   containerRef: React.RefObject<HTMLDivElement | null>;
-  conflictGuids: string[];
+  guids: string[];
+  keepSide: "ours" | "theirs";
   selections: Map<string, MergeSide>;
-  statuses: Record<string, ThreeWayNodeStatus>;
   graphText: string | undefined;
   onPick: (guid: string, side: MergeSide) => void;
 }
 
-// Floating Ours/Theirs/Skip control over each conflict node in the result pane.
-function ConflictBadges({ containerRef, conflictGuids, selections, statuses, graphText, onPick }: BadgesProps) {
+// Keep / Drop control on each changed node in a side pane (JetBrains-style
+// accept / reject). Keep includes this side's version; Drop excludes the node.
+function NodeBadges({ containerRef, guids, keepSide, selections, graphText, onPick }: BadgesProps) {
   const [positions, setPositions] = useState<Array<{ guid: string; top: number; left: number }>>([]);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || conflictGuids.length === 0) {
+    if (!container || guids.length === 0) {
       setPositions([]);
       return;
     }
@@ -202,54 +226,103 @@ function ConflictBadges({ containerRef, conflictGuids, selections, statuses, gra
       const next: Array<{ guid: string; top: number; left: number }> = [];
       cont.querySelectorAll("ueb-node").forEach((el) => {
         const nodeEl = el as HTMLElement & { entity?: { NodeGuid?: { toString(): string } } };
-        // Canonical merged node names are N_<guid>; match on the entity guid.
         const guid = nodeEl.entity?.NodeGuid?.toString();
-        if (!guid || !conflictGuids.includes(guid)) return;
+        if (!guid || !guids.includes(guid)) return;
         const r = el.getBoundingClientRect();
-        next.push({ guid, top: r.top - base.top, left: r.left - base.left + r.width / 2 - 48 });
+        next.push({ guid, top: r.top - base.top, left: r.left - base.left + r.width / 2 - 32 });
       });
       setPositions(next);
     }
     recompute();
     const observer = new MutationObserver(recompute);
     observer.observe(container, { childList: true, subtree: true, attributes: true });
-    const interval = window.setInterval(recompute, 800);
+    const interval = window.setInterval(recompute, 400);
     return () => {
       observer.disconnect();
       window.clearInterval(interval);
     };
-  }, [containerRef, conflictGuids, graphText]);
+  }, [containerRef, guids, graphText]);
 
   return (
     <>
       {positions.map(({ guid, top, left }) => {
-        const cur = selections.get(guid) ?? defaultSide(statuses[guid]);
+        const cur = selections.get(guid) ?? "skip";
+        const kept = cur === keepSide;
         return (
-          <div key={guid} className={styles.badge3} style={{ top, left }}>
+          <div key={guid} className={styles.keepDrop} style={{ top, left }}>
             <button
-              className={`${styles.badge3Btn} ${cur === "ours" ? styles.badge3Ours : ""}`}
-              onClick={() => onPick(guid, "ours")}
-              title="Take Ours"
+              className={`${styles.kdBtn} ${kept ? styles.kdKeepOn : ""}`}
+              onClick={() => onPick(guid, keepSide)}
+              title="Keep this node"
             >
-              Ours
+              ✓ Keep
             </button>
             <button
-              className={`${styles.badge3Btn} ${cur === "theirs" ? styles.badge3Theirs : ""}`}
-              onClick={() => onPick(guid, "theirs")}
-              title="Take Theirs"
-            >
-              Theirs
-            </button>
-            <button
-              className={`${styles.badge3Btn} ${cur === "skip" ? styles.badge3Skip : ""}`}
+              className={`${styles.kdBtn} ${cur === "skip" ? styles.kdDropOn : ""}`}
               onClick={() => onPick(guid, "skip")}
-              title="Skip this node"
+              title="Don't keep this node"
             >
-              Skip
+              ✕
             </button>
           </div>
         );
       })}
     </>
   );
+}
+
+// Keep the three blueprint viewports aligned: when the user pans/zooms one,
+// mirror its scroll + zoom to the others. Uses ueblueprint's element API
+// (getScroll/setScroll/zoom) defensively — no-ops if unavailable.
+function useViewportSync(splitRef: React.RefObject<HTMLDivElement | null>, deps: unknown[]) {
+  useEffect(() => {
+    const root = splitRef.current;
+    if (!root) return;
+    let raf = 0;
+    let last: { x: unknown; y: unknown; z: unknown } | null = null;
+    let applying = false;
+
+    const blueprints = () => Array.from(root.querySelectorAll("ueb-blueprint")) as any[];
+
+    function read(b: any): { x: unknown; y: unknown; z: unknown } | null {
+      try {
+        const s = typeof b.getScroll === "function" ? b.getScroll() : [b.scrollX, b.scrollY];
+        return { x: s?.[0] ?? s?.x ?? b.scrollX, y: s?.[1] ?? s?.y ?? b.scrollY, z: b.zoom };
+      } catch {
+        return null;
+      }
+    }
+    function apply(b: any, v: { x: any; y: any; z: unknown }) {
+      try {
+        if (typeof b.setScroll === "function") b.setScroll([v.x, v.y]);
+        else { b.scrollX = v.x; b.scrollY = v.y; }
+        if (b.zoom !== v.z && v.z != null) b.zoom = v.z;
+      } catch {
+        /* ignore */
+      }
+    }
+
+    function tick() {
+      const bps = blueprints();
+      if (bps.length >= 2 && !applying) {
+        // Find the pane that changed since last tick.
+        for (const b of bps) {
+          const cur = read(b);
+          if (!cur) continue;
+          if (last && (cur.x !== last.x || cur.y !== last.y || cur.z !== last.z)) {
+            applying = true;
+            for (const o of bps) if (o !== b) apply(o, cur as any);
+            applying = false;
+            last = cur;
+            break;
+          }
+          if (!last) last = cur;
+        }
+      }
+      raf = window.setTimeout(tick, 120) as unknown as number;
+    }
+    raf = window.setTimeout(tick, 500) as unknown as number;
+    return () => window.clearTimeout(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 }

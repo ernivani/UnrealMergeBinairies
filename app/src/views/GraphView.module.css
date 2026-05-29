@@ -64,6 +64,49 @@
   min-height: 0;
 }
 
+/* Side pane wrapper — holds a GraphPane plus its floating Keep/Drop badges. */
+.paneWrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
+.hint {
+  font-size: 10px;
+  color: var(--ue-text-dim);
+  margin-left: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Keep / Drop control on a changed node (JetBrains-style accept/reject). */
+.keepDrop {
+  position: absolute;
+  display: flex;
+  gap: 2px;
+  background: rgba(20, 20, 30, 0.95);
+  border: 1px solid var(--ue-border-strong);
+  border-radius: 4px;
+  padding: 2px;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.kdBtn {
+  background: transparent;
+  border: none;
+  color: #cfcfcf;
+  padding: 2px 7px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+}
+.kdBtn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.kdKeepOn { background: rgba(45, 138, 78, 0.95); color: #fff; }
+.kdDropOn { background: rgba(196, 69, 69, 0.95); color: #fff; }
+
 /* Center "Result" pane - the live merged graph; holds floating node badges. */
 .resultWrap {
   position: relative;
